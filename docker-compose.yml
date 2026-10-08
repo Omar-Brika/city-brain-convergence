@@ -1,0 +1,8 @@
+# Starts the whole city with one command: docker compose up
+services:
+  twin:
+    build: ./twin
+  brain:
+    build: ./brain
+  guardian:
+    build: ./guardian
