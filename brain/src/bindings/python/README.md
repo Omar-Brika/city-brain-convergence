@@ -12,8 +12,8 @@ pip install -e .
 This single command also builds the C core (via CMake) the first time it
 runs, if it has not been built yet — no separate manual build step is
 required, including on a brand-new clean checkout. See
-`../../docs/build.md` and `../../docs/integration.md` for the full story,
-including the exact toolchain this requires (CMake and a C99 compiler).
+`../../docs/build.md` for the full story, including the exact toolchain
+this requires (CMake and a C99 compiler).
 
 ```python
 import citybrain
@@ -27,4 +27,5 @@ print(result.posterior)
 
 Every citybrain function raises a subclass of `citybrain.errors.CityBrainError`
 on bad input rather than returning a raw C status code; see
-`../../docs/api_reference.md` for the full mapping.
+`../../docs/api_reference.md` for the full mapping, and
+`../../docs/usage.md` for a fuller usage guide.

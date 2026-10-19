@@ -1,4 +1,4 @@
-# citybrain-core
+# citybrain
 
 A generic, portable **deterministic decision library**: bounded-influence
 evidence fusion, change-point detection, a bounded multiplier graph,
@@ -61,26 +61,28 @@ Full details: `docs/build.md`.
 ## Repository layout
 
 ```
-citybrain-core/
-  .github/workflows/ci.yml  build + full test suite on every push/PR
-  include/citybrain/        public C header(s) -- the one source of truth
-                             (includes physics.h, the optional physics module)
-  src/                       C implementation (includes physics.c)
-  tests/                     C unit, adversarial, property-based tests, golden vectors
-  bench/                     benchmarking
-  bindings/python/
-    citybrain/               pythonic wrapper package (cffi, out-of-line API mode)
-    tests/                   Python test suite, same golden vectors as the C tests
-  mcp_server/                read-only MCP tool server
-  docs/
-    architecture.md          layering, why each boundary exists, call graph
-    build.md                 exact build/install/run steps
-    api_reference.md         one entry per public function
-    math_reasoning.md        the fault-tolerance derivation and proof-vs-code cross-check
-    testing.md                what's tested, actual results, known limitations
-    integration.md            how to pull this into another repo and call it
-    City_Brain_Math_Core_Reasoning.pdf   standalone reasoning document (+ .md source)
-  CMakeLists.txt
+brain/
+  src/
+    include/citybrain/       public C header(s) -- the one source of truth
+                              (includes physics.h, the optional physics module)
+    src/                      C implementation (includes physics.c)
+    bindings/python/
+      citybrain/              pythonic wrapper package (cffi, out-of-line API mode)
+    mcp_server/               read-only MCP tool server
+    docs/
+      architecture.md         layering, why each boundary exists, call graph
+      build.md                exact build/install/run steps
+      api_reference.md        one entry per public function
+      math_reasoning.md       the fault-tolerance derivation and proof-vs-code cross-check
+      testing.md               what's tested, actual results, known limitations
+      usage.md                 how to call this from elsewhere in brain/
+      City_Brain_Math_Core_Reasoning.pdf   standalone reasoning document (+ .md source)
+    CMakeLists.txt
+  tests/
+    *.c                       C unit, adversarial, property-based tests
+    bench/                    benchmarking
+    vectors/                  golden vectors, shared by the C and Python suites
+    python/                   Python test suite, same golden vectors as the C tests
 ```
 
 ## What this is responsible for, and what it is not
@@ -103,28 +105,17 @@ responsible for."
 | `docs/api_reference.md` | every public function: C signature, Python signature, errors, a worked example |
 | `docs/math_reasoning.md` | the fault-tolerance inequality, its proof, its cross-check against the compiled code, algorithm-choice reasoning, related work |
 | `docs/testing.md` | what's tested, how to run it, actual results, honest known limitations |
-| `docs/integration.md` | pulling this into the main team repo as a submodule and calling it |
+| `docs/usage.md` | how to call this from elsewhere in `brain/` |
 | `docs/City_Brain_Math_Core_Reasoning.pdf` | standalone reasoning document for a non-coder reader (judge, teammate deciding whether to trust this component) |
-
-## Continuous integration
-
-`.github/workflows/ci.yml` runs the full C suite (GCC and Clang,
-warnings-as-errors), the full Python suite via the real one-command
-install, the MCP server end-to-end demo, and the extended 50000-case
-property sweep on every push and pull request — added after an independent
-audit flagged that this project's trust-pinnable-by-another-team claim
-(see `docs/integration.md`) had no automated enforcement behind it.
 
 ## Versioning
 
-This repository follows semantic versioning starting at `v1.0.0`. A tagged
-release is a commit the authors consider stable enough for another team to
-pin a submodule reference to (see `docs/integration.md`). Breaking changes
-to any public C function's signature or documented behavior bump the major
-version; new functionality that doesn't break existing callers bumps the
-minor version; bug fixes bump the patch version. The CMake package-config
-file installs a version file so `find_package(citybrain)` can request a
-compatible range.
+This component follows semantic versioning starting at `v1.0.0`. Breaking
+changes to any public C function's signature or documented behavior bump
+the major version; new functionality that doesn't break existing callers
+bumps the minor version; bug fixes bump the patch version. The CMake
+package-config file installs a version file so `find_package(citybrain)`
+can request a compatible range.
 
 ## License
 

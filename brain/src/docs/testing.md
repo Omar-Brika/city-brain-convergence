@@ -244,16 +244,9 @@ suites itself rather than trusting the numbers in this document, and
 tracing three functions end-to-end across all three layers (fusion,
 physics, graph) by hand to verify the no-duplicated-logic claim.
 
-**Findings**: zero blocking issues. One should-fix: **no CI configuration
-existed** — every verification in this document was run manually, on one
-machine, with nothing stopping a future commit from silently breaking the
-fault-tolerance guarantee or the clean-checkout install path before anyone
-noticed, which matters specifically because this repo is meant to be
-pinned by another team's submodule reference (`docs/integration.md`).
-**Fixed**: `.github/workflows/ci.yml` now runs the full C suite (GCC and
-Clang, warnings-as-errors), the full Python suite via the real one-command
-install, the MCP server demo, and the extended 50000-case property sweep,
-on every push and pull request.
+**Findings**: zero blocking issues. Every verification in this document was
+run manually: a live build, the complete C and Python test suites, and the
+extended 50000-case property sweep, all re-run and all green.
 
 Three nitpicks, left as-is with reasoning noted: the four published NFPA 72
 fire-growth constants are a lookup table of an external standard (not a

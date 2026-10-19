@@ -17,7 +17,7 @@ from pathlib import Path
 from cffi import FFI
 
 HERE = Path(__file__).resolve().parent
-REPO_ROOT = HERE.parent.parent  # citybrain-core/
+REPO_ROOT = HERE.parent.parent  # brain/src/
 INCLUDE_DIR = REPO_ROOT / "include"
 VENDOR_BUILD_DIR = Path(
     os.environ.get("CITYBRAIN_VENDOR_BUILD_DIR", str(HERE / "_vendor_build"))

@@ -17,6 +17,7 @@ the file is organized in blocks, each with its own header line starting with
 """
 import csv
 import math
+import pathlib
 from decimal import Decimal, getcontext
 
 getcontext().prec = 50
@@ -380,7 +381,7 @@ physics_traffic_case("beyond_jam_density", 30.0, 120.0, 150.0)
 rows["physics_traffic"] = physics_cases
 
 # --------------------------------------------------------------- write ---
-out_path = "/home/gathman/main/dev/citybrain-core/tests/vectors/golden.csv"
+out_path = pathlib.Path(__file__).resolve().parent / "golden.csv"
 with open(out_path, "w", newline="") as f:
     w = csv.writer(f)
     w.writerow(["# City Brain core golden test vectors"])
