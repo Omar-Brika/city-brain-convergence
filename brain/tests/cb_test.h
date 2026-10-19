@@ -1,11 +1,5 @@
-/*
- * Minimal test harness. No framework dependency: this repo has to build on a
- * machine where only a C compiler and CMake are available.
- *
- * Every check is counted, and the final report prints the counts, so a suite
- * that silently ran three assertions cannot be mistaken for one that ran
- * three thousand.
- */
+/* Minimal test harness, no framework dependency. Every check is counted and
+ * the final report prints the counts. */
 #ifndef CB_TEST_H
 #define CB_TEST_H
 

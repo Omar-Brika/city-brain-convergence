@@ -48,8 +48,7 @@ static void test_worked_example(void)
     cb_fusion_result_t res;
     cb_evidence_t items[2];
 
-    /* The design brief's own figures: cap 8x, prior 2%, one falsified source
-     * reaches about 14%, below the ~20% action threshold; two are needed. */
+    /* Cap 8x, prior 2%: one falsified source reaches ~14%, below the ~20% threshold; two are needed. */
     CB_CASE("design brief worked example, one source");
     CB_CHECK_OK(cb_fusion_config_init(&cfg));
     CB_CHECK_NEAR(cfg.lr_cap, 8.0, 0.0);
@@ -68,8 +67,7 @@ static void test_worked_example(void)
     CB_CHECK_TRUE(res.posterior >= 0.20);
 
     CB_CASE("an uncapped claim would have run away");
-    /* Same evidence without the cap would give a posterior near 0.95. The cap
-     * is the whole reason one source cannot act on its own. */
+    /* Without the cap this same evidence gives a posterior near 0.95. */
     CB_CHECK_TRUE(1000.0 * (0.02 / 0.98) / (1.0 + 1000.0 * (0.02 / 0.98)) > 0.95);
 }
 

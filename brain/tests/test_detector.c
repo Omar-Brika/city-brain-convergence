@@ -79,16 +79,9 @@ static void test_init_and_state_guard(void)
     CB_CHECK_OK(cb_detector_update(&st, &cfg, 10.0, NULL));
 }
 
-/*
- * False-alarm rate on a stationary stream.
- *
- * This is measured, not assumed. The Siegmund approximation in
- * cb_detector_arl0 assumes a fixed, known baseline. This detector learns its
- * baseline and, with the hold enabled, stops learning once the CUSUM starts
- * accumulating -- which is what keeps a real sustained shift visible, and
- * which also costs false alarms. The numbers below are printed on every run
- * so the claim in docs/testing.md is reproducible rather than remembered.
- */
+/* False-alarm rate on a stationary stream, measured rather than assumed: the
+ * Siegmund approximation in cb_detector_arl0 assumes a fixed baseline, but
+ * this detector learns its own and stops learning once the CUSUM builds. */
 static double measure_false_alarms(int hold_enabled, int seeds, int samples)
 {
     long total = 0;
@@ -137,13 +130,8 @@ static void test_false_alarm_rate(void)
     printf("    measured, baseline hold off:          %.2f alarms per run\n",
            without_hold);
 
-    /*
-     * The bound is empirical, chosen with headroom over the measured mean,
-     * and the printed numbers above are what the documentation quotes. The
-     * detector is not claimed to be silent on a stationary stream -- a CUSUM
-     * has a finite false-alarm rate by construction, which is why a caller
-     * should corroborate an alarm rather than act on it alone.
-     */
+    /* Bound is empirical with headroom; a CUSUM has a nonzero false-alarm rate
+     * by construction, so a caller should corroborate an alarm, not act alone. */
     CB_CHECK_TRUE(with_hold > 0.0 && with_hold < 30.0);
     CB_CHECK_TRUE(without_hold < with_hold);
     CB_CHECK_TRUE(without_hold < 10.0);
@@ -241,14 +229,9 @@ static void test_baseline_hold(void)
            baseline_with_hold, baseline_without, 0.3 * 99.0);
 }
 
-/*
- * A real quantity that rises slowly -- a water level over an hour, a queue
- * filling up -- never produces a large single-sample residual against an
- * adaptive baseline, so a per-sample threshold on that residual never fires.
- * Accumulating the residual does fire. This is the case the detector exists
- * for, and it is a statement about the measured process, not about the
- * sensor or the channel.
- */
+/* A slowly rising quantity never produces a large single-sample residual
+ * against an adaptive baseline, so a per-sample threshold never fires;
+ * accumulating the residual does. This is the case the detector exists for. */
 static void test_slow_ramp(void)
 {
     cb_detector_config_t cusum_cfg, naive_cfg;
@@ -264,9 +247,8 @@ static void test_slow_ramp(void)
     CB_CASE("a 0.05-sigma-per-sample ramp evades a 3-sigma per-sample rule");
     r.s = 2026u;
 
-    /* The comparison: the same adaptive baseline, but the decision is a
-     * per-sample threshold on the residual with no accumulation and no
-     * baseline hold. That is the rule this detector exists to replace. */
+    /* Same adaptive baseline, but the decision is a bare per-sample
+     * threshold on the residual -- the rule this detector replaces. */
     CB_CHECK_OK(cb_detector_config_init(&naive_cfg));
     naive_cfg.baseline_hold_enabled = 0;
     naive_cfg.cusum_threshold = 1e9; /* effectively disables the CUSUM alarm */

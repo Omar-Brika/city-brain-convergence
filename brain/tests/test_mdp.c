@@ -3,12 +3,9 @@
 
 static void test_two_state(void)
 {
-    /*
-     * Two states: 0 = quiet, 1 = active. Two actions: 0 = hold, 1 = act.
-     * Acting from the active state resolves it; acting from quiet wastes a
-     * resource. The optimal policy is obvious by hand, which is the point:
-     * the solver must agree with it.
-     */
+    /* Two states (quiet, active), two actions (hold, act); acting from active
+     * resolves it, acting from quiet wastes a resource. The hand-obvious optimal
+     * policy is what the solver is checked against. */
     double transition[2 * 2 * 2];
     double reward[2 * 2];
     double scratch[4];

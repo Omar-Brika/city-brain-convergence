@@ -4,9 +4,7 @@
 #define SCRATCH_BYTES (1u << 20)
 static unsigned char g_scratch[SCRATCH_BYTES];
 
-/* Independent check: brute force over all permutations for small matrices.
- * Written from the definition of the assignment problem, not from the
- * library, so agreement between the two is evidence and not a tautology. */
+/* Independent brute force over all permutations, for small matrices. */
 static void brute_force_rec(const double *m, int n, int cols, int row,
                             int *used, double acc, double *best)
 {

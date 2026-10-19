@@ -1,12 +1,6 @@
-/*
- * Unit tests for citybrain/physics.h: the Gaussian likelihood-ratio test,
- * the flood mass-balance model, the fire t-squared growth and plume
- * dispersion models, and the Greenshields traffic model.
- *
- * Every worked-example value here was computed independently in Python
- * (see the comment above each case) before this file was written, the same
- * discipline the rest of this project's golden vectors follow.
- */
+/* Unit tests for citybrain/physics.h: Gaussian LRT, flood mass balance, fire
+ * growth and plume dispersion, and the Greenshields traffic model. Worked
+ * examples were computed independently in Python, noted above each case. */
 #include "cb_test.h"
 
 static void test_gaussian_lrt(void)
@@ -97,9 +91,7 @@ static void test_flood_rise_rate(void)
                     CB_ERR_NULL);
 
     CB_CASE("a negative water level is a model-domain error, not a trust judgement");
-    /* The error is about pow()'s domain, not about whether -1.0 m should be
-     * believed -- the caller's trust layer, not this function, owns that
-     * question. See the header comment on this exact point. */
+    /* The error is about pow()'s domain, not whether -1.0 m should be believed. */
     CB_CHECK_STATUS(cb_physics_flood_rise_rate(100.0, 1.0, 0.5, 1.5, -0.001, &rate),
                     CB_ERR_DOMAIN);
 }
@@ -253,10 +245,7 @@ static void test_traffic_greenshields(void)
     }
 
     CB_CASE("density beyond jam density is evaluated, not rejected, and goes negative");
-    /* This is the documented model-validity boundary, not a trust check:
-     * the formula is evaluated exactly as given. A negative "expected
-     * speed" here is a signal for the Gaussian LRT step to weigh, not
-     * something this function silently clamps or reports as invalid. */
+    /* The formula is evaluated exactly as given, not clamped or rejected. */
     CB_CHECK_OK(cb_physics_traffic_greenshields_speed(30.0, 120.0, 150.0, &speed));
     CB_CHECK_TRUE(speed < 0.0);
     CB_CHECK_NEAR(speed, 30.0 * (1.0 - 150.0 / 120.0), 1e-12);
@@ -276,11 +265,7 @@ static void test_traffic_greenshields(void)
                     CB_ERR_DOMAIN);
 }
 
-/* ------------------------------------------------------------------ */
-/* An end-to-end example: physics feeding straight into fusion, with no */
-/* modification to fusion itself -- demonstrating the "pluggable, never */
-/* changes existing behaviour" claim in code, not just in prose.        */
-/* ------------------------------------------------------------------ */
+/* End-to-end example: physics output feeding straight into fusion as ordinary input. */
 static void test_physics_feeds_fusion_unmodified(void)
 {
     double expected_rate, lr;
@@ -289,9 +274,6 @@ static void test_physics_feeds_fusion_unmodified(void)
     cb_evidence_t item;
 
     CB_CASE("a physics-derived likelihood ratio is ordinary fusion input");
-    /* A zone physically expected to rise at ~0.05 m/s under a hypothesised
-     * flood, versus near-zero under normal conditions; the sensor observes
-     * a rate matching the flood hypothesis closely. */
     CB_CHECK_OK(cb_physics_flood_rise_rate(200.0, 12.0, 0.5, 1.5, 1.0, &expected_rate));
     CB_CHECK_OK(cb_physics_gaussian_likelihood_ratio(expected_rate, expected_rate,
                                                       0.0, 0.01, &lr));
@@ -304,9 +286,7 @@ static void test_physics_feeds_fusion_unmodified(void)
     CB_CHECK_TRUE(result.posterior > cfg.prior);
     CB_CHECK_TRUE(result.posterior >= 0.0 && result.posterior <= 1.0);
 
-    /* The cap still binds exactly as it would for any other evidence --
-     * physics evidence gets no special exemption from the fault-tolerance
-     * guarantee. A very strong physics match still cannot exceed the cap. */
+    /* Physics evidence gets no exemption from the cap. */
     CB_CHECK_TRUE(result.evidence_log_odds <= log(cfg.lr_cap) + 1e-9);
 }
 

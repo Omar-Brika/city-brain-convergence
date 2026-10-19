@@ -1,14 +1,6 @@
-/*
- * Randomised property tests.
- *
- * The worked example in the design brief is one point. These tests sample the
- * whole documented parameter space and assert the same invariants hold
- * everywhere. The case count is printed, and is settable:
- *
- *     ./test_property [cases]          (default 10000)
- *
- * A seed is fixed so a failure is reproducible; the seed is printed too.
- */
+/* Randomised property tests, sampling the documented parameter space rather
+ * than single worked examples. Case count is settable: ./test_property
+ * [cases] (default 10000). The seed is fixed and printed for reproducibility. */
 #include "cb_test.h"
 
 typedef struct rng { uint64_t s; } rng_t;
@@ -139,9 +131,7 @@ static long prop_no_evidence_exceeds_the_bound(rng_t *r, long cases)
         ft.max_weight = 1.0;
         CB_CHECK_OK(cb_ft_max_posterior(&ft, res.n_groups_used, &ceiling));
 
-        /* The whole safety argument in one line: however the attacker shapes
-         * the evidence, the posterior is capped by the number of independent
-         * groups it came from. */
+        /* The posterior is capped by the number of independent groups, whatever shape the evidence takes. */
         CB_CHECK_TRUE(res.posterior <= ceiling + 1e-12);
         CB_CHECK_TRUE(res.n_groups_used <= (int32_t)n_groups);
         CB_CHECK_TRUE(res.posterior >= 0.0 && res.posterior <= 1.0);

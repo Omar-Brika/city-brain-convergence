@@ -1,15 +1,7 @@
-/*
- * Golden-vector runner.
- *
- * Reads tests/vectors/golden.csv, generated independently in Python from the
- * mathematical definitions (tests/vectors/gen_vectors.py), and checks the C
- * library's actual output against it. The Python binding test suite parses
- * the same file, so both language bindings are checked against one
- * independently-derived source of truth rather than against each other.
- *
- * The parser here is small and deliberately simple: split on commas, skip
- * comment/blank/section lines, read a header row per section, then rows.
- */
+/* Golden-vector runner. Reads tests/vectors/golden.csv, generated
+ * independently in Python from the mathematical definitions, and checks the
+ * C library's output against it; the small CSV parser below just splits on
+ * commas, skips comment/blank/section lines, and reads a header row per section. */
 #include "cb_test.h"
 
 #ifndef CB_VECTORS_PATH
@@ -69,10 +61,7 @@ static void check_fusion_row(row_t *h, row_t *r)
     double expected_evid = col_d(r, find_col(h, "evidence_log_odds"));
     const char *name = col_s(r, find_col(h, "name"));
 
-    /* The CSV records the summary (n_items, evidence_log_odds, posterior) for
-     * each hand-picked case; reconstruct the matching evidence array for the
-     * handful of named cases so this is a real check, not just a replay of
-     * the config. */
+    /* Reconstruct the evidence array for each named case from the CSV's summary columns. */
     CB_CHECK_OK(cb_fusion_config_init(&cfg));
     cfg.lr_cap = lr_cap;
     cfg.prior = prior;
@@ -210,9 +199,7 @@ static void check_calibration_row(row_t *h, row_t *r)
 
 static void check_graph_row(row_t *h, row_t *r)
 {
-    /* The vectors encode a path of raw (pre-clip) multipliers; reconstruct a
-     * star graph of that many edges feeding node 0 -> 1 -> 2 -> ... so
-     * cb_graph_path_multiplier composes exactly that chain. */
+    /* Reconstruct a chain graph 0 -> 1 -> 2 -> ... matching the vectors' raw multipliers. */
     cb_graph_config_t cfg;
     cb_graph_t g;
     double expected_composed = col_d(r, find_col(h, "composed_multiplier"));

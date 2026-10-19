@@ -70,9 +70,7 @@ static void adversary_compromised_weights(void)
 
     CB_CASE("full weight everywhere is no better than the cap allows");
     {
-        /* An adversary who can set every weight to 1.0 gains nothing over an
-         * honest caller already using weight 1.0: the cap, not the weight, is
-         * what binds. Lower weights can only reduce influence. */
+        /* The cap binds regardless of weight; lower weights only reduce influence. */
         cb_fusion_config_t cfg;
         cb_fusion_result_t full, partial;
         cb_evidence_t items[6];
@@ -203,7 +201,7 @@ static void adversary_coordinated_fabrication(void)
 
         CB_CHECK_OK(cb_fusion_config_init(&cfg));
         for (i = 0; i < 10; ++i) {
-            /* Alternating: fabricated extremes and ordinary weak evidence. */
+            /* alternating fabricated extremes and ordinary weak evidence */
             items[i].likelihood_ratio = (i % 2 == 0) ? 1e300 : 1.4;
             items[i].weight = (i % 2 == 0) ? 1.0 : 0.3;
             items[i].group_id = (int32_t)(i % 5);
@@ -227,9 +225,6 @@ static void adversary_hostile_weights(void)
     cb_evidence_t item;
 
     CB_CASE("a weight above 1 is rejected, not scaled up");
-    /* If some upstream component returned a weight of 100, an unvalidated
-     * implementation would multiply the capped contribution by it and defeat
-     * the cap entirely. The domain check is what prevents that. */
     CB_CHECK_OK(cb_fusion_config_init(&cfg));
     item.likelihood_ratio = 8.0;
     item.weight = 100.0;
@@ -354,33 +349,16 @@ static void adversary_suppression(void)
     }
 }
 
-
-/* ------------------------------------------------------------------ */
-/* Physics module: physically absurd readings, one per incident type.  */
-/*                                                                      */
-/* These confirm the physics functions (citybrain/physics.h) never      */
-/* crash or produce NaN/garbage for an extreme input, and that an        */
-/* extreme reading is correctly reflected as evidentiary WEIGHT (a very  */
-/* small or very large likelihood ratio) -- never as a rejected,         */
-/* flagged, or "invalid" reading. There is no status code in this        */
-/* library that means "this reading is fake"; there is only ever a       */
-/* number describing how well it fits a hypothesis. That is the exact    */
-/* scope boundary this module's header states, and these tests keep it   */
-/* visible in the suite itself, not only in prose.                       */
-/* ------------------------------------------------------------------ */
-
+/* Physics: one physically absurd reading per incident type. Confirms the
+ * physics functions never crash or return NaN, and that an absurd reading
+ * comes back as a low likelihood ratio, never a rejected/flagged status. */
 static void adversary_physics_absurd_readings(void)
 {
     double expected_rate, lr;
 
     CB_CASE("flood: a physically impossible instantaneous drop is weak "
             "evidence for a flood, not a crash or a rejected reading");
-    /* A severe-but-real flood hypothesis predicts a rise of ~0.0996 m/s
-     * (computed from the mass-balance model below); an "observed" drop of
-     * 500 m/s is physically impossible for any real zone, but the function
-     * still returns a well-defined answer: a vanishingly small likelihood
-     * ratio (correctly, strongly favouring "no flood" over "flood"),
-     * underflowing cleanly to 0.0 rather than producing NaN or an error. */
+    /* real flood hypothesis predicts ~0.0996 m/s rise; a 500 m/s drop is impossible */
     CB_CHECK_OK(cb_physics_flood_rise_rate(500.0, 50.0, 0.2, 1.5, 1.0, &expected_rate));
     CB_CHECK_NEAR(expected_rate, 0.0996, 1e-9);
     CB_CHECK_OK(cb_physics_gaussian_likelihood_ratio(-500.0, expected_rate, 0.0,
@@ -391,12 +369,7 @@ static void adversary_physics_absurd_readings(void)
     CB_CASE("fire: clean air despite a severe nearby fire hypothesis is "
             "weak evidence for fire, not a crash or a rejected reading");
     {
-        /* An ultrafast-growth fire, 300s in, at close range: a real sensor
-         * near such a fire should detect meaningful smoke concentration.
-         * An observed reading of exactly clean air (0) is physically
-         * absurd if that fire were actually occurring at that range --
-         * but the function still returns a well-defined, very small
-         * likelihood ratio, not an error. */
+        /* ultrafast fire, 300s in, close range: clean air is implausible if real */
         double alpha, hrr, conc_h1, fire_lr;
         CB_CHECK_OK(cb_physics_fire_growth_class_alpha(CB_FIRE_GROWTH_ULTRAFAST, &alpha));
         CB_CHECK_OK(cb_physics_fire_heat_release_rate(alpha, 300.0, &hrr));
@@ -414,11 +387,7 @@ static void adversary_physics_absurd_readings(void)
     CB_CASE("traffic: an impossibly high speed is weak evidence for "
             "congestion, not a crash or a rejected reading");
     {
-        /* A near-jam density predicts a slow speed (~2.5 m/s); an observed
-         * speed of 300 m/s is physically impossible for real traffic, but
-         * the function still returns a well-defined answer: very weak
-         * support for the "jam" hypothesis relative to free-flow baseline,
-         * underflowing cleanly to 0.0 rather than erroring. */
+        /* near-jam density predicts ~2.5 m/s; 300 m/s is impossible for real traffic */
         double expected_jam_speed, traffic_lr;
         CB_CHECK_OK(cb_physics_traffic_greenshields_speed(30.0, 120.0, 110.0,
                                                            &expected_jam_speed));
@@ -429,16 +398,10 @@ static void adversary_physics_absurd_readings(void)
         CB_CHECK_TRUE(traffic_lr < 1e-6); /* a "low evidentiary weight" outcome */
     }
 
-    CB_CASE("a documented limitation: an absurd overshoot in the SAME "
-            "direction as the hypothesis can instead swing the ratio high, "
-            "not low -- the two-point Gaussian LRT compares relative "
-            "distance to two means, it does not independently bound "
-            "plausibility under either one, so a value far beyond anything "
-            "the hypothesis itself would produce is not specially detected "
-            "as absurd. This is a stated limitation (docs/math_reasoning.md, "
-            "Incident physics), not a bug: the function still never crashes "
-            "or returns NaN, it simply is not the right tool to recognise "
-            "'too extreme to be real' on its own.");
+    /* Known limitation: an overshoot in the SAME direction as the hypothesis
+     * can swing the ratio high instead of low (see docs/math_reasoning.md).
+     * Still never crashes or returns NaN. */
+    CB_CASE("documented limitation: overshoot in the hypothesis direction");
     {
         double alpha, hrr, conc_h1, fire_lr;
         CB_CHECK_OK(cb_physics_fire_growth_class_alpha(CB_FIRE_GROWTH_ULTRAFAST, &alpha));
