@@ -223,3 +223,9 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# City Brain: keys and certificates (SEC-5), run logs
+secrets/
+brain/secrets/
+brain/logs/*
+!brain/logs/.gitkeep
