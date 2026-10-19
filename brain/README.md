@@ -33,6 +33,7 @@ python -c "import secrets; print(secrets.token_hex(32))" > secrets/keys/twin-bra
 | Module | Run | Code | Team doc |
 |---|---|---|---|
 | Input (front door) | `python -m src.input` | `src/input/` | `01-input` |
+| Twin mock (test stand-in) | `python -m mocks.twin` | `mocks/twin/` | see `mocks/README.md` |
 
 Every module reads `config/*.yaml`. To use another config folder (e.g. a local broker without TLS), set `BRAIN_CONFIG_DIR=/path/to/config`.
 

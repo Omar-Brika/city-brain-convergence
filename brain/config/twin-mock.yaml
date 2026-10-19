@@ -1,0 +1,32 @@
+# Settings of the Twin mock (python -m mocks.twin). It stands in for the real Twin so the
+# Brain can be developed and tested alone. Topic names come from topics.yaml (external_in),
+# the HMAC key twin-brain from security.yaml, the broker address from broker.yaml.
+
+client_id: twin-mock
+auth:                                   # broker account of the Twin (the Brain uses its own)
+  username: twin
+  password_file: secrets/twin-password.txt   # empty or missing file = no password
+
+topics:
+  cmd: "brain/cmd/+"                    # commands from the Brain (output module)
+  control: twin/control                 # test control, sealed with the twin-brain key
+
+sim:
+  mode: auto               # auto: tick in real time | manual: only on a `step` control message
+  tick_s: 1
+  seed: 7
+  run_id: auto             # auto = tw<start time>; ids stay unique across restarts (E_REPLAY)
+  epoch: now               # now = wall clock (the Brain refuses old timestamps, E_STALE)
+  scenario: calm           # calm | flood | fire | accident | traffic-jam
+  scenario_after_ticks: 5  # ticks of calm before the scenario starts
+  noise: 0.02
+  command_delay_ticks: 2   # a command is applied (and acknowledged) this many ticks later
+  travel_ticks: 2          # unit en_route / returning duration
+  scene_ticks: 3           # unit on_scene duration
+  max_command_age_s: 10    # refuse commands with an older / future timestamp
+
+# Scripted faults. mode: malformed | impossible | wrong_type | wrong_unit | missing | freeze |
+# duplicate | old | replay | delay | falsify | unknown_id | bad_hmac | reject | failure |
+# lost_ack | no_effect.  Example:
+#   - {mode: impossible, tick: 20, end_tick: 22, device_id: water-01}
+faults: []
