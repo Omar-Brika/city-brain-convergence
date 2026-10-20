@@ -102,7 +102,7 @@ VRAM), 32 GB RAM, Windows 11, Ollama 0.40.6.
 
 ## 5. Open points and limits
 
-- **Throughput.** One generation at a time on the GPU (~2 s each): three simultaneous incidents fit in 8 s, a fourth times out and goes to the rule fallback. Next step: serve `critical` incidents first.
+- **Throughput.** One generation at a time on the GPU (~2 s each): three simultaneous incidents fit in 8 s, a fourth times out and goes to the rule fallback. The queue serves `critical` and `high` incidents first, so under a burst the low-severity ones are the ones left to the rules.
 - **Benchmark size.** 5 cases × 10 runs so far; the "≥ 95 % valid over 50 incidents" criterion needs a larger case set (ideally built with the mock team's scenarios).
 - **Model choice.** `qwen2.5-coder:7b` (already on the laptop) meets every target; 3B candidates are being downloaded for the comparison table (`qwen2.5:3b`, `llama3.2:3b`).
 - **Guardian trust is not re-weighted here.** The incident's `confidence`, `verified` and evidence `trust` are shown to the model, but trust is enforced by detection, scoring and the safety rules, not by the LLM.
