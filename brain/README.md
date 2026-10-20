@@ -135,7 +135,7 @@ brain/internal/incident (opened / updated) ─▶ context ─▶ prompt ─▶ l
 | `brain/internal/llm-status` | yes | `online` / `offline` (Last Will, and on every health change) |
 | `brain/event` | no | `llm_proposal`, `llm_timeout`, `llm_invalid_output`, `llm_skipped`, `llm_online`, `llm_offline` |
 
-**Setup (edge device = the demo laptop):** install [Ollama](https://ollama.com), then `ollama pull <model>` for the model in `config/llm.yaml` (`backend.model`). The module warms the model up at start and keeps it loaded (`keep_alive`). No internet is needed once the model is pulled.
+**Setup (edge device = the demo laptop):** install [Ollama](https://ollama.com), then `ollama pull <model>` for the model in `config/llm.yaml` (`backend.model`). The module warms the model up at start and keeps it loaded (`keep_alive`). No internet is needed once the model is pulled. Use `127.0.0.1`, not `localhost`, in `backend.url`: on Windows, `localhost` tries IPv6 first and adds about 2 s to every call.
 
 **Benchmark** the candidates on the device (writes the table for the report):
 
