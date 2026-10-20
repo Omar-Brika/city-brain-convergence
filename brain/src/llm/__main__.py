@@ -5,6 +5,7 @@ The mock LLM (mocks/mock_llm) runs this same service with a scripted backend.
 
 from __future__ import annotations
 
+import queue
 import signal
 import sys
 import threading
@@ -74,8 +75,8 @@ def run(backend: LlmBackend, client_suffix: str = "llm") -> None:
     def worker() -> None:
         while not stop.is_set():
             try:
-                job = service.jobs.get(timeout=0.5)
-            except Exception:
+                job = service.next_job(timeout_s=0.5)
+            except queue.Empty:
                 continue
             try:
                 service.process(job)

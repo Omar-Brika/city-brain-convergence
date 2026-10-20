@@ -65,7 +65,7 @@ def test_timeout_publishes_llm_timeout_and_no_proposal(run_case, bus, clock):
 def test_budget_counts_queue_time(make_service, bus, clock):
     service = make_service(FakeBackend(answer(("valve-port-up", "open"))))
     feed(service, DATA["city"], CASES["B2"])
-    job = service.jobs.get_nowait()
+    job = service.next_job(0)
     clock.t += 9                                                # waited longer than the 8 s budget
     assert service.process(job) == "timeout"
     assert bus.on(PROPOSAL) == []
@@ -77,9 +77,10 @@ def test_newer_update_replaces_older_request(make_service, bus):
     feed(service, DATA["city"], CASES["B2"])
     update = copy.deepcopy(CASES["B2"]["incident"]) | {"status": "updated", "severity": "critical"}
     service.handle("brain/internal/incident", json.dumps(update))
-    first, second = service.jobs.get_nowait(), service.jobs.get_nowait()
-    assert service.process(first) == "superseded"
-    assert service.process(second) == "proposal"
+    first, second = service.next_job(0), service.next_job(0)
+    assert first.incident.severity == "critical"                 # the newer, more severe version first
+    assert service.process(first) == "proposal"
+    assert service.process(second) == "superseded"
     assert len(backend.prompts) == 1 and "severity critical" in backend.prompts[0].user
 
 
@@ -89,8 +90,8 @@ def test_closed_incident_cancels_pending_request(make_service, bus):
     feed(service, DATA["city"], CASES["B2"])
     closed = copy.deepcopy(CASES["B2"]["incident"]) | {"status": "closed"}
     service.handle("brain/internal/incident", json.dumps(closed))
-    assert service.process(service.jobs.get_nowait()) == "superseded"
-    assert service.jobs.empty() and backend.prompts == []
+    assert service.process(service.next_job(0)) == "superseded"
+    assert not service.has_jobs() and backend.prompts == []
 
 
 def test_answer_for_an_incident_closed_meanwhile_is_dropped(make_service, bus):
@@ -103,7 +104,7 @@ def test_answer_for_an_incident_closed_meanwhile_is_dropped(make_service, bus):
 
     service.backend = FakeBackend(close_while_thinking)
     feed(service, DATA["city"], CASES["B2"])
-    assert service.process(service.jobs.get_nowait()) == "superseded"
+    assert service.process(service.next_job(0)) == "superseded"
     assert bus.on(PROPOSAL) == []
 
 
@@ -139,7 +140,7 @@ def test_no_city_description_yet_is_skipped(make_service, bus):
     backend = FakeBackend(answer(("valve-port-up", "open")))
     service = make_service(backend)
     service.handle("brain/internal/incident", json.dumps(CASES["B2"]["incident"]))
-    assert service.process(service.jobs.get_nowait()) == "skipped"
+    assert service.process(service.next_job(0)) == "skipped"
     assert backend.prompts == [] and bus.events("llm_skipped")
 
 
@@ -149,7 +150,7 @@ def test_bad_internal_messages_never_raise(make_service):
     service.handle("brain/internal/incident", json.dumps({"incident_id": "x"}))
     service.handle("brain/internal/meta", json.dumps({"zones": [{"no_id": 1}]}))
     service.handle("brain/internal/call", json.dumps([1, 2]))
-    assert service.jobs.empty()
+    assert not service.has_jobs()
 
 
 def test_events_are_sealed_when_keys_are_given(run_case, bus):
@@ -158,3 +159,15 @@ def test_events_are_sealed_when_keys_are_given(run_case, bus):
     assert set(raw["hmacs"]) == {"twin", "guardian"}
     # internal topics stay plain JSON (overview section 2)
     assert "body" not in json.loads([p for t, p, _, _ in bus.sent if t == PROPOSAL][0])
+
+
+def test_most_severe_incident_is_answered_first(make_service):
+    service = make_service(FakeBackend(answer(("valve-port-up", "open"))))
+    feed(service, DATA["city"], CASES["B2"])                    # high
+    low = copy.deepcopy(CASES["B5"]["incident"]) | {"severity": "low", "incident_id": "inc-low"}
+    critical = copy.deepcopy(CASES["B11"]["incident"]) | {"severity": "critical"}
+    unknown = copy.deepcopy(CASES["B10"]["incident"]) | {"severity": None}
+    for inc in (low, unknown, critical):
+        service.handle("brain/internal/incident", json.dumps(inc))
+    order = [service.next_job(0).incident.incident_id for _ in range(4)]
+    assert order == ["inc-0070", "inc-0031", "inc-low", "inc-0060"]

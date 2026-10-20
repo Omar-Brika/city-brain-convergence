@@ -112,5 +112,5 @@ def run_case(make_service):
         case.update(case_overrides or {})
         service = make_service(backend, **kw)
         feed(service, DATA["city"], case)
-        return service, service.process(service.jobs.get_nowait())
+        return service, service.process(service.next_job(0))
     return run

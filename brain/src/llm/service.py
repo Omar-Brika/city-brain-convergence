@@ -8,7 +8,8 @@ Time budget: the clock starts when the incident is received. Waiting in the queu
 the graph call and the LLM all count. Past the budget the answer is dropped and
 `llm_timeout` published; the rule fallback's proposal is then used by the math team.
 A newer update of the same incident replaces the older request (only the latest
-version is answered), and a closed incident cancels it.
+version is answered), and a closed incident cancels it. The GPU answers one incident
+at a time, so the queue serves the most severe incidents first (then the oldest).
 """
 
 from __future__ import annotations
@@ -34,6 +35,8 @@ from .context import CityState, GraphContextClient, merge_graph
 from .incident import Incident
 
 Publisher = Callable[[str, str, int, bool], None]   # topic, payload, qos, retain
+
+SEVERITY_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 
 
 @dataclass(slots=True)
@@ -71,7 +74,7 @@ class LlmService:
         self.city = CityState(self.cfg.get("unit_actions", {}), float(ctx_cfg["recent_calls_window_s"]),
                               self.cfg.get("relevant_targets"), self.cfg.get("action_hints"))
         self.budget_s = float(self.cfg["budget"]["answer_s"])
-        self.jobs: queue.Queue[Job] = queue.Queue()
+        self._jobs: queue.PriorityQueue[tuple[int, int, Job]] = queue.PriorityQueue()
         self._latest: dict[str, int] = {}        # incident_id -> latest version (0 = closed)
         self._versions = 0
         self._lock = threading.Lock()
@@ -123,7 +126,18 @@ class LlmService:
             self._versions += 1
             version = self._versions
             self._latest[inc.incident_id] = version
-        self.jobs.put(Job(inc, version, now, now + self.budget_s))
+        rank = SEVERITY_RANK.get(inc.severity or "", len(SEVERITY_RANK))
+        self._jobs.put((rank, version, Job(inc, version, now, now + self.budget_s)))
+
+    def next_job(self, timeout_s: float | None = None) -> Job:
+        """Most severe queued incident, oldest first. Raises queue.Empty after timeout_s
+        (0 = do not wait)."""
+        if timeout_s == 0:
+            return self._jobs.get_nowait()[2]
+        return self._jobs.get(timeout=timeout_s)[2]
+
+    def has_jobs(self) -> bool:
+        return not self._jobs.empty()
 
     # --- one request -----------------------------------------------------------------
 

@@ -75,7 +75,7 @@ def run_case(backend: LlmBackend, cfg: dict[str, Any], data: dict[str, Any], cas
     bus = Capture()
     service = LlmService(bus, backend, llm_cfg=cfg, logger=EventLogger("bench-llm", None, "ERROR"))
     feed(service, data["city"], case)
-    job = service.jobs.get_nowait()
+    job = service.next_job(0)
     t0 = time.perf_counter()
     outcome = service.process(job)
     latency = time.perf_counter() - t0
