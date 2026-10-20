@@ -213,3 +213,53 @@ def test_justification_is_cleaned_and_bounded(llm_cfg):
     c = check(llm_cfg, answer(("valve-port-up", "open"), justification="<b>ok</b>\n" + "z" * 1000))
     assert c.ok and len(c.justification) <= llm_cfg["validation"]["max_justification_chars"]
     assert "<" not in c.justification
+
+
+# --- nearby incidents ------------------------------------------------------------------
+
+
+def test_nearby_open_incidents_are_shown_and_closed_ones_forgotten(llm_cfg):
+    city = CityState(llm_cfg["unit_actions"], 900, llm_cfg["relevant_targets"], llm_cfg["action_hints"])
+    city.apply_meta(DATA["city"])
+    jam = Incident.model_validate(CASES["B11b"]["nearby_incidents"][0])
+    far = Incident.model_validate(CASES["B2"]["incident"])                  # port: not next to industrial
+    fire = Incident.model_validate(CASES["B11b"]["incident"])
+    for inc in (jam, far, fire):
+        city.track_incident(inc)
+    ctx = city.build(fire, 0, 3)
+    assert ctx.nearby == ["- inc-0069: traffic_jam in zone centre (neighbour); severity medium"]
+    assert "OTHER OPEN INCIDENTS NEARBY" in prompts.build(ctx, llm_cfg).user
+    city.track_incident(jam.model_copy(update={"status": "closed"}))
+    assert city.build(fire, 0, 3).nearby == []
+
+
+def test_nearby_incidents_are_kept_before_calls_when_space_is_short(llm_cfg):
+    ctx = build_ctx(llm_cfg, "B2", calls=[{"zone_id": "port", "category": "flood", "text": "w" * 280}] * 6)
+    ctx.nearby = ["- inc-9: accident in zone centre (neighbour); severity high"]
+    body = prompts.build(ctx, llm_cfg).user
+    assert "inc-9: accident" in body and len(body.split("\n\nPropose")[0]) <= llm_cfg["context"]["max_chars"]
+
+
+def test_service_tracks_incidents_it_receives(make_service):
+    from .conftest import FakeBackend, answer
+    service = make_service(FakeBackend(answer(("fire-1", "dispatch"))))
+    feed_case = CASES["B11b"]
+    jam = feed_case["nearby_incidents"][0]
+    service.handle("brain/internal/meta", json.dumps(DATA["city"]))
+    service.handle("brain/internal/incident", json.dumps(jam))
+    service.handle("brain/internal/incident", json.dumps(feed_case["incident"]))
+    jobs = [service.next_job(0), service.next_job(0)]
+    fire_job = next(j for j in jobs if j.incident.type == "fire")
+    service.backend.prompts.clear()
+    service.process(fire_job)
+    assert "inc-0069: traffic_jam" in service.backend.prompts[0].user
+
+
+def test_extended_cases_file_is_current():
+    """cases_extended.yaml is generated: regenerate with python -m tests.llm.make_cases."""
+    import yaml
+    from pathlib import Path
+    from .make_cases import generate
+    on_disk = yaml.safe_load((Path(__file__).parent / "cases_extended.yaml").read_text(encoding="utf-8"))
+    assert on_disk == generate()
+    assert len(on_disk["cases"]) >= 50

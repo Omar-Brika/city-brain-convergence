@@ -113,7 +113,10 @@ class LlmService:
                 elif topic == t["call"]["topic"]:
                     self.city.add_call(msg, self.clock())
             if topic == t["incident"]["topic"]:
-                self.on_incident(Incident.model_validate(msg))
+                inc = Incident.model_validate(msg)
+                with self._lock:
+                    self.city.track_incident(inc)
+                self.on_incident(inc)
         except (KeyError, TypeError, ValidationError) as e:
             self.log.warning("internal_message_refused", topic=topic, error=str(e)[:300])
 

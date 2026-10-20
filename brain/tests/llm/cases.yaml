@@ -35,7 +35,9 @@ city:
     - {unit_id: rescue-1,    type: rescue,    home_zone: docks}
 
 # expect.any: at least one proposed action must match one [target type or id, action] pair.
+# expect.also: list of further groups of pairs; each group must be matched too.
 # expect.forbid: no proposed action may use these target ids or types.
+# nearby_incidents: incidents already open when this one arrives.
 cases:
   - id: B2
     name: Real flood at the port
@@ -97,3 +99,18 @@ cases:
     calls:
       - {zone_id: industrial, category: fire, text: "Smoke coming from the substation, the road outside is blocked"}
     expect: {any: [[fire, dispatch]], forbid: [valve]}
+
+  - id: B11b
+    name: Fire at the substation with a jam already open next door
+    incident:
+      {id: det-000071, timestamp: "2026-11-14T11:00:20.000Z", correlation_id: twin-000610,
+       incident_id: inc-0071, type: fire, zone_id: industrial, status: opened, confidence: 0.85,
+       severity: high, verified: true,
+       evidence: [{source_id: aq-ind-1, kind: reading, value: 420, unit: ugm3, trust: 1.0},
+                  {source_id: power-ind-1, kind: reading, value: 128, unit: pct, trust: 1.0}]}
+    nearby_incidents:
+      - {id: det-000069, timestamp: "2026-11-14T10:59:00.000Z", correlation_id: twin-000590,
+         incident_id: inc-0069, type: traffic_jam, zone_id: centre, status: opened, confidence: 0.7,
+         severity: medium, verified: true, evidence: []}
+    expect: {any: [[fire, dispatch]], also: [[[traffic_signal, green_corridor], [traffic_signal, divert]]],
+             forbid: [valve]}
