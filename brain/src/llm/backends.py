@@ -40,6 +40,7 @@ class OllamaBackend:
     def __init__(self, cfg: dict[str, Any]):
         self.url = cfg["url"].rstrip("/")
         self.model = cfg["model"]
+        self.digest = str(cfg.get("digest") or "")       # optional pin (prefix of the sha256 digest)
         self.name = f"ollama:{self.model}"
         self.options = {
             "temperature": cfg.get("temperature", 0),
@@ -89,9 +90,14 @@ class OllamaBackend:
                 tags = json.loads(r.read().decode("utf-8"))
         except (urllib.error.URLError, OSError, ValueError) as e:
             return False, f"ollama unreachable ({_reason(e)})"
-        names = {m.get("name") for m in tags.get("models", [])} | {m.get("model") for m in tags.get("models", [])}
-        if self.model not in names and f"{self.model}:latest" not in names:
+        wanted = {self.model, f"{self.model}:latest"}
+        found = [m for m in tags.get("models", []) if {m.get("name"), m.get("model")} & wanted]
+        if not found:
             return False, f"model {self.model} not pulled"
+        digest = found[0].get("digest") or ""
+        if self.digest and not digest.startswith(self.digest):
+            # a re-pull can silently change the model under the same tag: do not use an unbenchmarked one
+            return False, f"model {self.model} is build {digest[:12]}, config pins {self.digest[:12]}"
         return True, None
 
     def warmup(self, timeout_s: float) -> None:

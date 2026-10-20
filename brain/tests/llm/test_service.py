@@ -171,3 +171,32 @@ def test_most_severe_incident_is_answered_first(make_service):
         service.handle("brain/internal/incident", json.dumps(inc))
     order = [service.next_job(0).incident.incident_id for _ in range(4)]
     assert order == ["inc-0070", "inc-0031", "inc-low", "inc-0060"]
+
+
+def test_known_offline_runtime_is_not_called(run_case, bus, make_service, clock):
+    backend = FakeBackend(answer(("valve-port-up", "open")), healthy=False)
+    service = make_service(backend)
+    service.tick()                                              # -> offline
+    feed(service, DATA["city"], CASES["B2"])
+    assert service.process(service.next_job(0)) == "timeout"
+    assert backend.prompts == []
+    assert "LLM offline" in bus.events("llm_timeout")[0]["summary"]
+
+
+def test_model_is_warmed_up_again_after_recovery(make_service, clock):
+    class Counting(FakeBackend):
+        warmups = 0
+
+        def warmup(self, timeout_s):
+            Counting.warmups += 1
+
+    backend = Counting("", healthy=True)
+    service = make_service(backend)
+    service.tick()                                              # first online: no extra warm-up
+    backend.healthy = False
+    clock.t += 10
+    service.tick()                                              # offline
+    backend.healthy = True
+    clock.t += 10
+    service.tick()                                              # back online -> warm-up
+    assert Counting.warmups == 1

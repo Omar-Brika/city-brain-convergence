@@ -94,6 +94,8 @@ def run_case(backend: LlmBackend, cfg: dict[str, Any], data: dict[str, Any], cas
 
 def bench_model(model: str, cfg: dict[str, Any], data: dict[str, Any], repeat: int) -> dict[str, Any]:
     cfg = copy.deepcopy(cfg)
+    if model != cfg["backend"]["model"]:
+        cfg["backend"]["digest"] = ""                   # the pin belongs to the configured model only
     cfg["backend"]["model"] = model
     backend = OllamaBackend(cfg["backend"])
     ok, reason = backend.health()

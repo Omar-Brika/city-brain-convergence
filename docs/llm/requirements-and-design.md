@@ -100,7 +100,30 @@ VRAM), 32 GB RAM, Windows 11, Ollama 0.40.6.
 | Proposal format and how LLM and rules compete | no | Math (format already in `team-plan/00` §3) |
 | Calls with free text and injections (B10, B11), "LLM offline" switch in the runner (B12) | no | Mock |
 
-## 5. Open points and limits
+## 5. Running it at the demo
+
+**Native (recommended).** Ollama and the LLM module run directly on the laptop, next to the GPU:
+`ollama serve` (or the Ollama tray app, started at login), then `python -m src.llm` from `brain/`.
+
+**In Docker.** If the Brain modules run in containers, Ollama still runs on the host (GPU
+passthrough on Windows is fragile). Point `backend.url` at the host with a config override
+(`BRAIN_CONFIG_DIR`): `http://host.docker.internal:11434`; on Linux add
+`extra_hosts: ["host.docker.internal:host-gateway"]` to the service. To decide with the
+person owning `docker-compose.yml` (no Dockerfile exists yet).
+
+**Checklist (day before and on stage)**
+
+- [ ] Model pulled and **pinned**: `backend.digest` matches `ollama list` (else `llm-status` is offline on purpose)
+- [ ] Copy of `%USERPROFILE%\.ollama\models` (5.7 GB with the current model) on a USB drive, plus the Ollama installer
+- [ ] `ollama ps` shows the model at **100 % GPU** (4.8 GB of the 8 GB VRAM); close games and GPU-heavy apps
+- [ ] Laptop on mains power, power plan "best performance" (a GPU on battery is throttled)
+- [ ] `backend.url` uses `127.0.0.1`
+- [ ] Warm-up done at start (`llm_warmed_up` in `logs/llm.jsonl`), `llm-status online` retained on the broker
+- [ ] Benchmark re-run on the laptop with the **whole stack running** (broker, timeline, all modules):
+      `python -m src.llm.bench --cases tests/llm/cases_extended.yaml --repeat 3`
+- [ ] Fallback drill: stop Ollama during a scenario → `llm-status offline` → rule fallback acts (B12)
+
+## 6. Open points and limits
 
 - **Throughput.** One generation at a time on the GPU (~2 s each): three simultaneous incidents fit in 8 s, a fourth times out and goes to the rule fallback. The queue serves `critical` and `high` incidents first, so under a burst the low-severity ones are the ones left to the rules.
 - **Benchmark size.** 5 cases × 10 runs so far; the "≥ 95 % valid over 50 incidents" criterion needs a larger case set (ideally built with the mock team's scenarios).

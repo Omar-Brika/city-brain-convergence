@@ -73,7 +73,7 @@ class FakeOllama(BaseHTTPRequestHandler):
     seen: list = []
 
     def do_GET(self):
-        self._send({"models": [{"name": "tiny:1b", "model": "tiny:1b"}]})
+        self._send({"models": [{"name": "tiny:1b", "model": "tiny:1b", "digest": "abc123def456" + "0" * 52}]})
 
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
@@ -125,7 +125,7 @@ def ollama():
 
 
 def backend_for(url, llm_cfg, model="tiny:1b"):
-    return OllamaBackend(llm_cfg["backend"] | {"url": url, "model": model})
+    return OllamaBackend(llm_cfg["backend"] | {"url": url, "model": model, "digest": ""})
 
 
 VALVE_ANSWER = json.dumps(
@@ -149,6 +149,16 @@ def test_ollama_health(ollama, llm_cfg):
     assert not ok and "not pulled" in reason
     ok, reason = backend_for("http://127.0.0.1:9", llm_cfg).health()
     assert not ok and "unreachable" in reason
+
+
+def test_ollama_digest_pin(ollama, llm_cfg):
+    pinned = OllamaBackend(llm_cfg["backend"] | {"url": ollama, "model": "tiny:1b", "digest": "abc123"})
+    assert pinned.health() == (True, None)
+    other = OllamaBackend(llm_cfg["backend"] | {"url": ollama, "model": "tiny:1b", "digest": "ffff00"})
+    ok, reason = other.health()
+    assert not ok and "config pins ffff00" in reason
+    unpinned = OllamaBackend(llm_cfg["backend"] | {"url": ollama, "model": "tiny:1b", "digest": ""})
+    assert unpinned.health() == (True, None)
 
 
 def test_ollama_timeout_and_unreachable(ollama, llm_cfg):

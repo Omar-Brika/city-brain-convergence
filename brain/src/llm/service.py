@@ -166,6 +166,9 @@ class LlmService:
         if not ctx.targets:
             return self._skip(job, "no device or unit available for this zone")
 
+        if self.status == "offline":
+            # known down: hand over to the rule fallback at once (health tick brings it back)
+            return self._timeout(job, "LLM offline")
         p = prompts.build(ctx, self.cfg)
         remaining = job.deadline - self.clock()
         if remaining <= 0:
@@ -220,7 +223,15 @@ class LlmService:
             return
         self._last_health = now
         ok, reason = self.backend.health()
+        was = self.status
         self.set_status("online" if ok else "offline", reason)
+        if ok and was == "offline":
+            # the runtime came back (restart, re-plug): its model is not loaded any more
+            try:
+                self.backend.warmup(timeout_s=120)
+                self.log.info("llm_warmed_up", model=self.backend.name, after="recovery")
+            except Exception as e:
+                self.log.warning("llm_warmup_failed", error=repr(e)[:200])
 
     def set_status(self, status: str, reason: str | None = None) -> None:
         if status == self.status:
