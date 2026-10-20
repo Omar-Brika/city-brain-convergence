@@ -1,6 +1,6 @@
 # Branches
 
-State as inspected on 20 Oct 2026 (remote `origin`, after `git fetch --all`). Work is identified
+State as inspected on 20 Oct 2026 (remote `origin`, after `git fetch --all`); `decision-math-library` was merged into `main` later that day (PR #3, `aee9fdc`). Work is identified
 by branch, not by person.
 
 ```
@@ -24,8 +24,8 @@ by branch, not by person.
 |---|---|---|---|---|
 | `main` | — | Triplet skeleton (`twin/`, `brain/`, `guardian/`, `docs/`, CODEOWNERS), Brain shared code `brain/src/common/`, **input module** `brain/src/input/`, configs, 19 JSON Schemas, Interface Card | 74 passed | Default branch; input module complete per `team-plan/01` |
 | `input/front-door` | `054d666` | The input module | (same code as `main`) | **Merged** into `main` (PR #1); nothing left outside `main` |
-| `mock/twin` | `main` | Mock Twin: `brain/mocks/twin/` (simulator, messages, MQTT service), `config/twin-mock.yaml`, 51 tests | 125 passed (74 + 51) | Not merged. Partial coverage of `team-plan/06` (no Guardian mock, no scenario runner) |
-| `decision-math-library` | `main` (merged back on 20 Oct) | C99 library `citybrain` (fusion, detector, graph, decision, assignment, cache, calibration, MDP, physics) with CMake build, cffi Python bindings, a FastMCP server with 13 read-only tools, docs, C and Python tests | 169 Python passed; 12/12 C suites passed **after build workarounds** on MSVC | Not merged. Does not implement the planned scoring service / rule fallback |
+| `mock/twin` (PR #2, open) | `main` | Mock Twin: `brain/mocks/twin/` (simulator, messages, MQTT service), `config/twin-mock.yaml`, 51 tests | 125 passed (74 + 51) | Not merged. Partial coverage of `team-plan/06` (no Guardian mock, no scenario runner) |
+| `decision-math-library` | `main` (merged back on 20 Oct) | C99 library `citybrain` (fusion, detector, graph, decision, assignment, cache, calibration, MDP, physics) with CMake build, cffi Python bindings, a FastMCP server with 13 read-only tools, docs, C and Python tests | 169 Python passed; 12/12 C suites passed **after build workarounds** on MSVC | **Merged** into `main` (PR #3). Does not implement the planned scoring service / rule fallback. Since the merge, `python -m pytest` in `brain/` stops at collection unless the C library is built and installed (`ModuleNotFoundError: citybrain` in `tests/python/`) |
 | `llm/local-service` | `main` | LLM module `brain/src/llm/`, mock LLM `brain/mocks/mock_llm/`, `config/llm.yaml`, proposal + llm-status models and schemas, 70 tests, benchmark (5 + 62 cases), LLM docs | 144 passed + live model test | In review (PR) |
 | `docs/project-overview` | `main` | This `docs/` organisation | — | In review (PR) |
 

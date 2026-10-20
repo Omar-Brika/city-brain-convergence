@@ -10,6 +10,7 @@ on a Windows 11 laptop (Python 3.14.4, MSVC 14.44); anything not executed is mar
 | | Input module (`main`) | Mock Twin (`mock/twin`) | Math library (`decision-math-library`) | LLM module (`llm/local-service`) |
 |---|---|---|---|---|
 | Plan item | `team-plan/01` | `team-plan/06` (Twin part) | `team-plan/04` (scoring + rule fallback) | `team-plan/03` |
+| Merged in `main` | yes (PR #1) | no (PR #2 open) | yes (PR #3) | no (PR) |
 | Language / runtime | Python, paho-mqtt, pydantic | Python, reuses `src/common` | C99 + CMake, cffi bindings, FastMCP | Python, stdlib HTTP to Ollama |
 | Talks MQTT | yes (`brain/internal/*`, `brain/error`, `brain/event`, `brain/status`) | yes (Twin topics, sealed envelopes) | **no** | yes (`brain/internal/proposal`, `llm-status`, `brain/event`) |
 | Broker-free tests | 74 passed | 51 passed (+74) | 95 Python + 12 C suites passed after workarounds | 70 passed (+74) + 1 live |
@@ -98,12 +99,14 @@ leaves the jam to the rules.
    `mocks/city.yaml`, rush hour, free-text and injection calls (B10, B11), a Guardian mock (most
    urgent, otherwise every run is in safe mode), then the scenario runner. Fix the `delay`/`old`
    README statements or the modes themselves.
-3. **Do not merge `decision-math-library` into `brain/src` as is.** Move it to its own folder
-   (e.g. `brain/native/citybrain/`) so it cannot collide with the Python package, fix the
-   portability defects, and treat it as an **optional** accelerator/explanation tool. Build the
-   planned `src/scoring` and `src/rules` services in Python first (they unblock the end-to-end
-   run of 26 Oct); reuse the library's ideas where they help: capped fusion as the explanation of
-   the trust penalty (B3/B4), `assignment.solve` for B5.
+3. **Contain `decision-math-library`, now on `main` (PR #3).** First make the test suite run without
+   it: `tests/python/` should skip when `citybrain` is not built (`pytest.importorskip`), since
+   today `python -m pytest` fails for everyone who has no C toolchain. Then move the CMake
+   project out of the Python package root (e.g. `brain/native/citybrain/`), fix the portability
+   defects, and treat it as an **optional** accelerator/explanation tool. Build the planned
+   `src/scoring` and `src/rules` services in Python first (they unblock the end-to-end run of
+   26 Oct); reuse the library's ideas where they help: capped fusion as the explanation of the
+   trust penalty (B3/B4), `assignment.solve` for B5.
 4. **Merge `llm/local-service`** after review by another team (per `team-plan/00` §5); it only
    adds files plus two additive model/topic entries.
 5. **Fix the shared blockers**: Dockerfiles for the compose file, real CODEOWNERS handles, the
