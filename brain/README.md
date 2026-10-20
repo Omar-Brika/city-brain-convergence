@@ -33,6 +33,8 @@ python -c "import secrets; print(secrets.token_hex(32))" > secrets/keys/twin-bra
 | Module | Run | Code | Team doc |
 |---|---|---|---|
 | Input (front door) | `python -m src.input` | `src/input/` | `01-input` |
+| LLM (local model, proposals) | `python -m src.llm` | `src/llm/` | `03-llm` |
+| Mock LLM (no model needed) | `python -m mocks.mock_llm [scripted\|slow\|offline\|invalid]` | `mocks/mock_llm/` | `03-llm` |
 
 Every module reads `config/*.yaml`. To use another config folder (e.g. a local broker without TLS), set `BRAIN_CONFIG_DIR=/path/to/config`.
 
@@ -111,3 +113,48 @@ Accepted messages are republished on `brain/internal/…` (formats in `team-docs
 **Measured:** about 0.07 ms per message through a real TLS broker, and well over 200 messages/s (unit test `tests/input/test_performance.py` checks < 5 ms and >= 200 msg/s).
 
 **Switching to mTLS / Ed25519** (if agreed with Guardian): set `tls.client_cert` / `tls.client_key`, and `guardian_signature.mode: ed25519` with the public key path, in `config/security.yaml`. No code change.
+
+---
+
+## LLM module
+
+A local LLM proposes actions for each incident. It only **proposes**: the math module scores the proposal against the rule fallback, and the output module applies the safety rules. If the LLM is slow, offline or answers badly, the rule fallback's proposal is used.
+
+```
+brain/internal/incident (opened / updated) ─▶ context ─▶ prompt ─▶ local LLM (Ollama) ─▶ validate ─▶ brain/internal/proposal
+                                              ▲                                              │ refused
+          meta, quarantine, ack, call ────────┘ (+ graph GET /context, optional)             └─▶ brain/event llm_invalid_output
+```
+
+**Consumes:** `brain/internal/incident`, `meta`, `call`, `ack`, `quarantine/+`, and optionally the graph `GET /context/{incident_id}` (`context.graph_url`).
+**Publishes:**
+
+| Topic | Retained | When |
+|---|---|---|
+| `brain/internal/proposal` | no | valid answer, `origin: llm` (schema `contracts/schemas/internal-proposal.schema.json`) |
+| `brain/internal/llm-status` | yes | `online` / `offline` (Last Will, and on every health change) |
+| `brain/event` | no | `llm_proposal`, `llm_timeout`, `llm_invalid_output`, `llm_skipped`, `llm_online`, `llm_offline` |
+
+**Setup (edge device = the demo laptop):** install [Ollama](https://ollama.com), then `ollama pull <model>` for the model in `config/llm.yaml` (`backend.model`). The module warms the model up at start and keeps it loaded (`keep_alive`). No internet is needed once the model is pulled.
+
+**Benchmark** the candidates on the device (writes the table for the report):
+
+```bash
+python -m src.llm.bench --models qwen2.5:3b,llama3.2:3b,qwen2.5-coder:7b --repeat 10
+```
+
+Cases are in `tests/llm/cases.yaml` (B2, B5, B8, B10, B11 of the Test Book); each run goes through the real service (context, prompt, validation).
+
+**Design choices to know:**
+
+- **Time budget, hard.** The 8 s (`budget.answer_s`) start when the incident is received: queue wait, graph call and generation all count. The answer is streamed, and the connection is closed at the deadline, which also stops Ollama generating. Late answers are dropped with `llm_timeout`.
+- **Latest version wins.** A newer update of the same incident replaces the queued request; a `closed` incident cancels it; an answer for an incident that changed meanwhile is dropped.
+- **Context is built locally** from the retained internal topics, so the LLM works even if the graph API is down. The graph only adds related events and quarantined devices. The prompt stays under 1,500 characters (`context.max_chars`); related events, then older calls, then extra evidence are dropped first.
+- **Only relevant devices are offered** (`relevant_targets` per incident type): on an accident the model never sees a valve, whatever a call says. Quarantined devices and busy units are left out.
+- **Structured output.** The answer JSON Schema given to Ollama lists only this incident's devices and actions as enums, so the model cannot even produce an unknown id.
+- **Strict validation anyway** (`validate.py`): known device, allowed action, not quarantined, at most 3 actions, bounded params and justification. In `strict` mode one bad action refuses the whole answer.
+- **Call text is data.** It sits in a `<call_text>` block; `<` and `>` are neutralised so it cannot close the block, and the system prompt says it is never an instruction.
+- **Action hints** (`action_hints`) tell the model what each action does (e.g. valve `open` drains the zone). They must match the Twin's simulation.
+- **Everything is logged** (`logs/llm.jsonl`): prompt version, model, prompt, raw answer, latency.
+
+**Mock LLM** (`python -m mocks.mock_llm <mode>`): the same service with a scripted backend, for teams without the GPU. `scripted` answers from `mock.playbook`, `slow` answers after 15 s (→ `llm_timeout`), `offline` never answers (→ `llm-status offline`), `invalid` returns broken JSON (→ `llm_invalid_output`).
