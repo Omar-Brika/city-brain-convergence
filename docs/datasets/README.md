@@ -6,6 +6,7 @@ Two files:
 |---|---|
 | this README | Summary of the team's dataset note (`Dataset.pdf`, 2 pages, not committed) |
 | [`assessment.md`](assessment.md) | What each dataset actually contains (access, size, fields, licence), how it maps to our sensors and incidents, and which subsets to store |
+| [`scripts/`](scripts/) | Standard-library scripts used for the assessment (FloodNet case cards, statistics, partial zip downloads) |
 
 ## Summary of the dataset note
 

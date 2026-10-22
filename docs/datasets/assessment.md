@@ -125,4 +125,4 @@ stratify each type by severity, time of day and context.
 The samples and standard-library scripts used for this assessment (FloodNet events and a
 case-card prototype, FDNY / 311 / DOT / collisions samples, an OpenAQ day, FARS extracts, the
 UTD19 manual) are outside the repository, in the shared project folder `dataset-research/`.
-They are not committed.
+The data is not committed; the scripts are in [`scripts/`](scripts/).
