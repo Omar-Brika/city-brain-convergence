@@ -3,7 +3,7 @@
 backend:
   kind: ollama                  # ollama | mock
   url: http://127.0.0.1:11434   # Ollama on the edge device; 127.0.0.1, not localhost (Windows tries IPv6 first: +2 s per call)
-  model: qwen2.5-coder:7b       # provisional: replace with the benchmark winner (python -m src.llm.bench)
+  model: qwen2.5-coder:7b       # chosen by benchmark (docs/report/brain-llm.md); fallback: qwen2.5:3b
   # Pin the exact build that was benchmarked (prefix of the digest shown by GET /api/tags or
   # `ollama list`). A different build under the same tag makes llm-status offline. Empty = no pin.
   digest: dae161e27b0e          # qwen2.5-coder:7b, Q4_K_M, 7.6B
