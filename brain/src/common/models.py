@@ -280,6 +280,35 @@ class TimelineEvent(_Internal):
     summary: str
 
 
+# --- Internal (published by the LLM module and the rule fallback) --------------------
+
+
+class ProposalAction(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    target_id: str
+    action: str
+    params: dict[str, str | int | float | bool] = {}
+
+
+class Proposal(_Internal):
+    """brain/internal/proposal: actions proposed for one incident (origin llm or rules)."""
+
+    correlation_id: str
+    incident_id: str
+    origin: Literal["llm", "rules"]
+    actions: list[ProposalAction]
+    justification: str
+
+
+class LlmStatus(_Internal):
+    """brain/internal/llm-status (retained, Last Will offline)."""
+
+    status: Literal["online", "offline"]
+    model: str | None = None
+    reason: str | None = None
+
+
 INTERNAL_MODELS: dict[str, type[_Internal]] = {
     "internal-meta": InternalMeta,
     "internal-reading": InternalReading,
@@ -288,6 +317,8 @@ INTERNAL_MODELS: dict[str, type[_Internal]] = {
     "internal-quarantine": InternalQuarantine,
     "internal-ack": InternalAck,
     "internal-layer-status": InternalLayerStatus,
+    "internal-proposal": Proposal,
+    "internal-llm-status": LlmStatus,
     "brain-error": BrainError,
     "brain-status": BrainStatus,
     "brain-event": TimelineEvent,
