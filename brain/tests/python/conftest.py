@@ -1,5 +1,11 @@
 import csv
+import importlib.util
 import pathlib
+
+# Skip this folder when the citybrain library is not built, so that
+# `python -m pytest` still runs the other suites (see src/docs/build.md).
+if importlib.util.find_spec("citybrain") is None:
+    collect_ignore_glob = ["test_*.py"]
 
 VECTORS_PATH = (
     pathlib.Path(__file__).resolve().parents[1] / "vectors" / "golden.csv"
