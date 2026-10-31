@@ -6,3 +6,11 @@ services:
     build: ./brain
   guardian:
     build: ./guardian
+
+  # Mock Twin (brain/mocks/): stands in for `twin` until the real one is connected.
+  # Start with `docker compose --profile mocks up twin-mock`. Reuses the image of ./brain, which needs
+  # its Dockerfile (not part of the mock work) and the broker / keys of brain/README.md.
+  twin-mock:
+    build: ./brain
+    command: python -m mocks.twin
+    profiles: [mocks]
