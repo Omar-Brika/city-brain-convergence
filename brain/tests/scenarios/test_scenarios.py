@@ -18,6 +18,15 @@ import pytest
 SCENARIOS = Path(__file__).resolve().parents[3] / "scenarios"
 sys.path.insert(0, str(SCENARIOS))
 
+def _load_runner():
+    """scenarios/run.py under its own name: brain/run.py (the launcher) is also called `run`."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("scenario_runner", SCENARIOS / "run.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 import make_testbook  # noqa: E402
 import scenariolib as lib  # noqa: E402
 
@@ -233,7 +242,7 @@ class FakeClient:
 
 
 def test_run_one_publishes_run_control_drives_mocks_and_writes_one_log(tmp_path, monkeypatch):
-    import run as runner
+    runner = _load_runner()
     from src.common import config
 
     ftime = FakeTime()
@@ -267,7 +276,7 @@ def test_run_one_publishes_run_control_drives_mocks_and_writes_one_log(tmp_path,
 
 
 def test_cli_check_and_list(capsys):
-    import run as runner
+    runner = _load_runner()
     assert runner.main(["--check"]) == 0
     assert runner.main(["--list"]) == 0
     assert runner.main(["B99"]) == 2

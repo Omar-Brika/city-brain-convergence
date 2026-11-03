@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import importlib
+import importlib.util
 import sys
 from argparse import Namespace
 from pathlib import Path
@@ -51,8 +52,10 @@ def test_mosquitto_hash_format_verifies():
 
 
 def test_launcher_selection():
-    sys.path.insert(0, str(BRAIN))
-    run = importlib.import_module("run")
+    # loaded under its own name: scenarios/run.py is also imported as `run` by the scenario tests
+    spec = importlib.util.spec_from_file_location("brain_launcher", BRAIN / "run.py")
+    run = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(run)
     cfg = config.load("launch")
     mods = run.select(Namespace(mock_llm=True, mocks=True, only=None, without="graph"), cfg)
     assert mods["llm"] == cfg["mock_llm"] and "twin" in mods and "graph" not in mods
