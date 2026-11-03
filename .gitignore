@@ -232,3 +232,5 @@ brain/logs/*
 
 # Local tool state (agent worktrees)
 .claude/
+# Scenario run logs are evidence for the jury (R2): keep them in the repo
+!/logs/*.log

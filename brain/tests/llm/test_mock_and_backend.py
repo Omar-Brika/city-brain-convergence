@@ -61,6 +61,26 @@ def test_unknown_mode_is_refused(llm_cfg):
         mock(llm_cfg, "chaotic")
 
 
+def test_control_topic_switches_the_mock_mode(run_case, llm_cfg):
+    """brain/control/llm (scenario runner): mock only, plain JSON, bad messages ignored."""
+    from mocks.mock_llm.control import LlmControl
+    from src.common import config
+    from src.common.log import EventLogger
+
+    topic = config.load("topics")["control"]["llm"]["topic"]
+    backend = mock(llm_cfg, "scripted")
+    control = LlmControl(backend, topic, EventLogger("test-llm-control", None, "ERROR"))
+    control.handle(topic, json.dumps({"mode": "offline"}))
+    assert backend.mode == "offline" and backend.health()[0] is False and backend.name == "mock:offline"
+    for bad in ("not json", json.dumps({"mode": "nope"}), json.dumps(["offline"]), json.dumps({})):
+        control.handle(topic, bad)
+    control.handle("brain/control/run", json.dumps({"mode": "scripted"}))   # another topic: ignored
+    assert backend.mode == "offline"
+    assert run_case("B2", backend)[1] == "timeout"
+    control.handle(topic, json.dumps({"mode": "scripted"}))
+    assert run_case("B2", backend)[1] == "proposal"
+
+
 # --- Ollama backend against a local fake HTTP server (no model needed) ----------------
 
 

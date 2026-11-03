@@ -26,6 +26,8 @@ external_out:
 # log file per run (R2). Not read by the decision modules.
 control:
   run:    {topic: brain/control/run, qos: 1, retain: true}
+  # Mock LLM only: {"mode": "scripted" | "slow" | "offline" | "invalid"} (mocks/mock_llm/control.py)
+  llm:    {topic: brain/control/llm, qos: 1, retain: false}
 
 internal:
   # Published by the input module (formats: team-docs overview, section 3)

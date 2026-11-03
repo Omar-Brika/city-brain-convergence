@@ -401,3 +401,36 @@ def test_reset_with_a_seed_and_scenario_reproduces_the_run(make_rig):
 
 def water_of_core(rig):
     return rig.twin.core._truth["water-02"]
+
+
+def test_reset_can_set_rush_hour_and_scripted_calls(make_rig):
+    rig = make_rig()
+    rig.connect()
+    rig.twin.handle("twin/control", seal({"op": "reset", "rush_hour": {"start_tick": 1, "end_tick": 9},
+                                         "calls": [{"tick": 2, "zone_id": "zone-03", "category": "fire", "text": "hi"}]}, TWIN_KEY))
+    rig.feed()
+    rig.tick(5)
+    assert rig.twin.core.config.rush_hour["end_tick"] == 9
+    assert [c["text"] for c in rig.internal("brain/internal/call")] == ["hi"]
+    rig.twin.handle("twin/control", seal({"op": "reset", "rush_hour": None, "calls": []}, TWIN_KEY))
+    assert rig.twin.core.config.rush_hour is None and rig.twin.core.config.calls == []
+    assert rig.errors() == []
+
+
+def test_offline_and_online_control(make_rig):
+    rig = make_rig()
+    rig.connect()
+    rig.tick(2)
+    rig.twin.handle("twin/control", seal({"op": "offline"}, TWIN_KEY))
+    rig.feed()
+    assert rig.internal("brain/internal/layer-status/twin")[-1]["status"] == "offline"
+    n = len(rig.twin_bus.sent)
+    rig.tick(3)
+    rig.command("valve-01", "open", cid="brain-000009")
+    rig.twin.on_connect()                         # a reconnect while down keeps it down
+    assert [t for t, *_ in rig.twin_bus.sent[n:]] == ["twin/status"] and rig.twin.refused == 1
+    rig.twin.handle("twin/control", seal({"op": "online"}, TWIN_KEY))
+    rig.feed()
+    rig.tick(1)
+    assert rig.internal("brain/internal/layer-status/twin")[-1]["status"] == "online"
+    assert rig.errors() == []

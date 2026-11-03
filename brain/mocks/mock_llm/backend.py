@@ -30,6 +30,13 @@ class MockBackend:
         self.name = f"mock:{self.mode}"
         self._sleep = sleep
 
+    def set_mode(self, mode: str) -> None:
+        """Switch mode at run time (scenario runner, brain/control/llm). Raises ValueError."""
+        if mode not in MODES:
+            raise ValueError(f"mock LLM mode must be one of {MODES}, not {mode!r}")
+        self.mode = mode
+        self.name = f"mock:{mode}"
+
     def health(self) -> tuple[bool, str | None]:
         if self.mode == "offline":
             return False, "mock LLM in offline mode"

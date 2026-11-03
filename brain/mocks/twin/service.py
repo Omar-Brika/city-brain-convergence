@@ -29,8 +29,9 @@ from .messages import Mapper
 Publisher = Callable[[str, str, int, bool], None]   # topic, payload, qos, retain
 
 
-# `sim` settings a `reset` control message may change (a scenario runner starts each run this way)
-RESET_OVERRIDES = ("seed", "scenario", "scenario_zone", "scenario_after_ticks")
+# Settings a `reset` control message may change (a scenario runner starts each run this way).
+# They stay until the next reset that names them, so a runner sends all of them every time.
+RESET_OVERRIDES = ("seed", "scenario", "scenario_zone", "scenario_after_ticks", "rush_hour", "calls")
 
 
 def build_sim_config(cfg: dict[str, Any], now: float, run_id: str | None = None,
@@ -46,7 +47,8 @@ def build_sim_config(cfg: dict[str, Any], now: float, run_id: str | None = None,
         clock=str(sim.get("clock", "wall")), scenario_zone=sim.get("scenario_zone") or None,
         city=load_city(config.resolve(sim["city"])) if sim.get("city") else None,
         slow_ack_s=float(sim.get("slow_ack_s", 5)), actuator_modes=cfg.get("actuator_modes") or {},
-        rush_hour=cfg.get("rush_hour"), call_texts=cfg.get("call_texts"), calls=cfg.get("calls"),
+        rush_hour=sim.get("rush_hour", cfg.get("rush_hour")), call_texts=cfg.get("call_texts"),
+        calls=sim.get("calls", cfg.get("calls")),
         faults=[Fault.from_dict(f) for f in cfg.get("faults") or []],
     )
 
@@ -83,6 +85,7 @@ class TwinService:
         self._known_targets = {a["actuator_id"] for a in meta["actuators"]} | {u["unit_id"] for u in meta["units"]}
         self.max_age = float(sim["max_command_age_s"])
         self.refused = 0
+        self.paused = False            # `offline` control op: the Twin goes down (scenario B13)
 
     def _new_run_id(self) -> str:
         """Unique per start and per reset, so reading ids never repeat inside the Brain's replay window."""
@@ -116,6 +119,9 @@ class TwinService:
     def on_connect(self) -> None:
         """After every (re)connect: online, then the city description (retained), then states."""
         with self._lock:
+            if self.paused:            # `offline` control: stay offline across reconnects
+                self._send(*self.mapper.status("offline"))
+                return
             for message in (self.mapper.status("online"), self.mapper.meta(self.core.meta())):
                 self._send(*message)
             self._send_outputs(self.core.snapshot())
@@ -124,6 +130,8 @@ class TwinService:
     def tick(self) -> None:
         """One simulation step; publishes the readings, calls, acks and unit states of the tick."""
         with self._lock:
+            if self.paused:
+                return
             self._send_outputs(self.core.step(now=self.clock()))
 
     # --- inputs ---------------------------------------------------------------------
@@ -136,6 +144,8 @@ class TwinService:
             with self._lock:
                 if topic == self.cfg["topics"]["control"]:
                     self._control(self._open(payload))
+                elif topic.startswith(self._cmd_prefix) and self.paused:
+                    self._refuse(topic, "twin offline (control op)")
                 elif topic.startswith(self._cmd_prefix):
                     self._command(topic.removeprefix(self._cmd_prefix), self._open(payload))
         except (EnvelopeError, ValueError, KeyError, TypeError) as e:
@@ -189,7 +199,17 @@ class TwinService:
                 self.core.config.faults = [Fault.from_dict(f) for f in body["faults"]]
             if "actuator_modes" in body:
                 self.core.set_actuator_modes(body["actuator_modes"])
+        elif op == "offline":
+            # the Twin goes down: status offline, then no readings, calls or acks (the city is frozen)
+            # until `online` or `reset`; commands received meanwhile get no answer
+            self.paused = True
+            self._send(*self.mapper.status("offline"))
+        elif op == "online":
+            if self.paused:
+                self.paused = False
+                self.on_connect()
         elif op == "reset":
+            self.paused = False
             self._resets += 1
             self.run_id = self._new_run_id()
             self._overrides.update({k: body[k] for k in RESET_OVERRIDES if k in body})
