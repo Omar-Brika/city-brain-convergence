@@ -34,6 +34,7 @@ python -c "import secrets; print(secrets.token_hex(32))" > secrets/keys/twin-bra
 |---|---|---|---|
 | Input (front door) | `python -m src.input` | `src/input/` | `01-input` |
 | LLM (local model, proposals) | `python -m src.llm` | `src/llm/` | `03-llm` |
+| Math (scoring + rule fallback, decisions) | `python -m src.scoring` | `src/scoring/`, `src/rules/` | `04-math-model` |
 | Mock LLM (no model needed) | `python -m mocks.mock_llm [scripted\|slow\|offline\|invalid]` | `mocks/mock_llm/` | `03-llm` |
 | Twin mock (test stand-in) | `python -m mocks.twin` | `mocks/twin/` | see `mocks/README.md` |
 
@@ -159,3 +160,35 @@ Cases are in `tests/llm/cases.yaml` (B2, B5, B8, B10, B11 of the Test Book); eac
 - **Everything is logged** (`logs/llm.jsonl`): prompt version, model, prompt, raw answer, latency.
 
 **Mock LLM** (`python -m mocks.mock_llm <mode>`): the same service with a scripted backend, for teams without the GPU. `scripted` answers from `mock.playbook`, `slow` answers after 15 s (→ `llm_timeout`), `offline` never answers (→ `llm-status offline`), `invalid` returns broken JSON (→ `llm_invalid_output`).
+
+## Math module (scoring + rule fallback)
+
+One process, `python -m src.scoring`: the rule fallback (`src/rules/`) is called by the scoring service (`src/scoring/`), so a rule proposal always exists when the decision is taken, even with the LLM offline. Settings: `config/rules.yaml` (standard actions), `config/scoring.yaml` (every number of the score and the timing). Report paragraph: `docs/report/brain-scoring.md`.
+
+```
+incident (opened / updated) -> rule proposal (origin rules) -> wait for the LLM (8 s) -> check + allocate units -> score -> brain/internal/decision
+                                                                ^ llm proposal, llm-status, llm_timeout / llm_invalid_output / llm_skipped (brain/event)
+outcome failed / refused, unit free again, severity up / new evidence type -> decide again (decision_changed, new actions only)
+```
+
+**Consumes:** `brain/internal/meta`, `incident`, `proposal` (origin llm), `outcome`, `ack` (unit status and zone), `llm-status`, `quarantine/+`, `trust/+`, `layer-status/+`, and `brain/event` (LLM give-up events; sealed envelopes are checked with the outgoing keys of `config/security.yaml`).
+**Publishes:**
+
+| Topic | Retained | When |
+|---|---|---|
+| `brain/internal/proposal` | no | `origin: rules`, on every opened / updated incident (ids `rules-...`) |
+| `brain/internal/decision` | no | chosen actions, score, alternatives with scores, risk, evidence sensors, mode, one-line explanation (ids `math-...`) |
+| `brain/event` | no | `rules_proposal` (when its actions change), `decision`, `decision_changed`, `decision_skipped` |
+
+**Rule fallback** (`config/rules.yaml`): action templates by target type, resolved to devices from the city description: flood -> open the valves controlling the zone (`opening` 1.0) + signal priority in the zone (+ rescue unit from `high`); fire -> nearest free fire truck + signal priority (+ ambulance from `high`); accident -> nearest free ambulance + signal priority (+ police from `high`); traffic jam -> signal priority; power problem -> shed the grid switch controlling the zone. Never a quarantined device, a busy unit or a target that already failed for the incident; what cannot be resolved is left out and written in the justification.
+
+**Score** (`config/scoring.yaml`): `P = confidence x severity_weight x zone_importance x (1 + waiting_s / 60)`; per action `P x effectiveness - cost - risk x (1 - trust)` (minus `2.5 x risk x P` for a risky action in safe mode unless 2 sensor types agree); a proposal scores the sum of its actions with a positive score, actions <= 0 are dropped. Worked example: `python -m tests.scoring.worked_example`.
+
+**Design choices to know:**
+
+- **When to decide.** Waits for the LLM proposal up to `llm.yaml budget.answer_s` (8 s, override `decide.budget_s`). Decides on the rules at once if `llm-status` is offline or the LLM gave up on that incident. `critical`: decides at once, then switches if a better LLM proposal arrives within the budget. Updates only trigger a new decision on a severity increase or a new evidence type. Tie: the rule proposal.
+- **Checked proposals.** Unknown target, action not allowed (meta `actions`, `rules.yaml unit_actions` for units), quarantined, or failed before: dropped and named in the explanation.
+- **Units.** Nearest free unit (zone hops on the meta adjacency); a free unit wanted by an undecided incident of higher priority is left to it (B5: the numbers are in the explanation). A unit held by another incident is taken only if `P >= 1.5 x` the holder's P: the Twin refuses a dispatch to a busy unit, so the decision sends a `recall`, and the incident is decided again with the dispatch once the Twin reports the unit `free`. Incidents that could not get a unit get one the same way when one becomes free.
+- **Later decisions list only new actions** (never resent, so the output's cooldown never refuses them); nothing is undone. After `failed` / `refused` the target is excluded for the incident (at most `max_redecisions`).
+- **No decision** (`decision_skipped`) when all evidence has trust 0 (Guardian's latest verdict wins over detection's trust), or the best score is <= 0.
+- **Closed incident:** forgotten; its units are not recalled (out of scope). Every decision is logged with its full score breakdown in `logs/scoring.jsonl`.
