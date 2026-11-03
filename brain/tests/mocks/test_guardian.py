@@ -141,6 +141,16 @@ def test_real_flood_stays_trusted(grig):
     assert rig.g_bus.bodies("guardian/quarantine/") == []
 
 
+def test_end_of_a_real_flood_stays_trusted(grig):
+    """The Twin drops the level back to 0.4 m in one tick when a flood ends: a fall may be faster than a rise."""
+    rig = grig(scenario="flood", scenario_after_ticks=2)
+    rig.connect()
+    rig.tick(15)
+    rig.twin.handle("twin/control", seal({"op": "trigger", "scenario": "calm", "zone": "zone-01"}, TWIN_KEY))
+    rig.tick(5)
+    assert {v["verdict"] for v in rig.verdicts("water-01")} == {"trusted"}
+
+
 def test_real_flood_with_valve_opened_stays_trusted(grig):
     rig = grig(scenario="flood", scenario_after_ticks=2)
     rig.connect()

@@ -46,11 +46,11 @@ forced_reasons:              # `reason` of the forced modes
   release: forced
 
 checks:
-  # Largest believable change per tick, per sensor type. The Twin mock's scenarios move in steps
-  # (flood: 0.4 -> 1.4 m, fire: air 12 -> 250 ug/m3, accident: density 30 -> 160), which must pass;
-  # the fake flood of T5 (0.4 -> 1.8 m) must not.
+  # Largest believable change per tick, per sensor type (a number, or {rise, fall}). The Twin mock's
+  # scenarios move in steps (flood: 0.4 -> 1.4 m, back to 0.4 m when it ends; fire: air 12 -> 250
+  # ug/m3; accident: density 30 -> 160), which must pass; the fake flood of T5 (0.4 -> 1.8 m) must not.
   max_step:
-    water_level: 1.2
+    water_level: {rise: 1.2, fall: 2.5}
     traffic_speed: 60
     traffic_density: 200
     traffic_flow: 100

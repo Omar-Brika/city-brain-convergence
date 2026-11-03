@@ -8,7 +8,9 @@ logic, and use the same `src/common/` code as the Brain.
 |---|---|---|---|
 | Twin | `python -m mocks.twin` | `config/twin-mock.yaml` | done |
 | LLM | `python -m mocks.mock_llm [scripted\|slow\|offline\|invalid]` | `config/llm.yaml` (`mock`) | done |
-| Guardian | | | to do |
+| Guardian | `python -m mocks.guardian` | `config/guardian-mock.yaml` | done |
+
+Scenarios that drive the three mocks (B1-B13, T5): `scenarios/README.md` at the repo root.
 
 ## Twin mock
 
@@ -118,13 +120,74 @@ non-default modes also exist as timed faults on one device (`faults:`).
 
 **Control** (test only). Topic `twin/control`, sealed with the twin-brain key, body
 `{"op": ...}`: `trigger` (`scenario`, optional `zone`), `call` (`zone_id`, `category`, `text`), `faults` (`faults: [...]` and / or `actuator_modes: {id: mode}`), `contain` (`device_id`,
-`action`: `isolate` / `quarantine` / `release`, takes effect next tick), `reset` (optional `seed`, `scenario`, `scenario_zone`, `scenario_after_ticks`: the same seed and scenario
+`action`: `isolate` / `quarantine` / `release`, takes effect next tick), `reset` (optional `seed`, `scenario`, `scenario_zone`, `scenario_after_ticks`,
+`rush_hour`, `calls`: the same seed and scenario
 give the same readings, so a scenario runner starts each run with one message; new run id,
-goes `offline` then `online` so the Brain restarts its `seq` counters), `step` (use with
-`sim.mode: manual`).
+goes `offline` then `online` so the Brain restarts its `seq` counters; the values stay until a
+later reset names them, so the runner always sends all six), `step` (use with
+`sim.mode: manual`), `offline` (the Twin goes down: `twin/status` offline, then no readings, calls
+or acknowledgements and no answer to commands, the city is frozen; scenario B13) and `online`
+(back: status, city description and states again, the next tick continues).
 
 **Tests:** `pytest tests/mocks`. They include the mock feeding the Brain's real input module:
 every message must pass, and each fault must give the code above.
+
+## Guardian mock
+
+Stands in for the Guardian layer (R1). Run it from the `brain/` folder with a broker and the keys of
+`README.md` in place: it needs the `guardian-brain` HMAC key and, for a TLS broker, the Guardian's
+own broker account in `secrets/guardian-password.txt` (`auth` in `config/guardian-mock.yaml`).
+
+| Direction | Topic | Content |
+|---|---|---|
+| in | `city/+/sensor/+/+` | Twin readings. They are sealed for the Brain with the twin-brain key; the mock reads the body and, when it has that key, drops readings whose HMAC is wrong (`verify_twin_hmac`) |
+| in | `twin/meta` | city description (until it arrives: `mocks/city.yaml`) |
+| in | `guardian/control` | test control, sealed with the guardian-brain key |
+| out | `guardian/verdict/{sensor_id}` (retained) | `id`, `timestamp`, `source: guardian`, `correlation_id` = the reading id, `sensor_id`, `verdict` `trusted` / `suspicious` / `rejected`, `reason`, `trust_score` 0..1, `details` |
+| out | `guardian/quarantine/{device_id}` (retained) | `device_id`, `state` `quarantined` / `released`, `reason` |
+| out | `guardian/status` (retained, Last Will `offline`) | `online` / `offline` |
+
+Everything goes out sealed with the guardian-brain key (`envelope: hmac`, or `hmacs` for
+`{"hmacs": {"brain": ...}}`), topic names from `config/topics.yaml` (`external_in`, source
+`guardian`). `tests/mocks/test_guardian.py` feeds every message to the Brain's real input module:
+all pass, with no special case.
+
+**Checks** (mode `auto`, the default), on every reading, first match wins:
+
+| Check | Verdict, reason |
+|---|---|
+| value outside the sensor's `[min, max]` | `rejected`, `out_of_range` |
+| change since the last trusted value above `checks.max_step` for the type (per tick; `{rise, fall}` allowed) | `rejected`, `implausible_jump` |
+| same value `frozen_rejected_n` (10) readings in a row | `rejected`, `frozen` |
+| pinned at the min or max bound `flatline_n` (5) readings | `rejected`, `flatline` |
+| same value `frozen_suspicious_n` (5) readings in a row | `suspicious`, `frozen` |
+| otherwise | `trusted`, `consistent` (score 0.95, 0.90 when far from the sensor's own baseline) |
+
+A jump stays rejected while the value stays away from the last trusted level; a real step is
+accepted once it held `rebase_n` readings with live noise (a forged constant never is). The
+limits let the Twin mock's own scenario steps through (flood 0.4 -> 1.4 m, fire, accident) and catch
+the fake flood of T5 (0.4 -> 1.8 m) at its first reading. With `isolate_on_reject`, a sensor rejected
+for `implausible_jump` is also isolated (quarantine notice, released after `auto_release_after`
+trusted readings). Repeated reading ids, older `seq`, unknown sensors and non-numbers are ignored.
+
+A verdict that changes is published at once; an unchanged one is published again every `refresh_s`
+(5 s), so the Brain (offline after 30 s without a verdict) never thinks Guardian is silent.
+
+**Modes** (`modes:` in the config, or `{"op": "mode", "mode": ...}` / `"modes": [...]` on
+`guardian/control`; `{"op": "reset"}` releases every quarantine, forgets the history and goes back to
+the config, or to the `modes` it carries):
+
+| Mode | Behaviour |
+|---|---|
+| `auto` | the checks above; also clears forced modes and `slow` |
+| `trust_all` | every sensor trusted, score 0.95 |
+| `reject:<sensor_id>` | rejected, reason `out_of_range` |
+| `suspicious:<sensor_id>` | suspicious, score 0.5 |
+| `flip_flop[:<sensor_id>]` | alternates rejected / trusted on every reading (one sensor or all) |
+| `clear:<sensor_id>` | back to the checks for that sensor |
+| `quarantine:<device_id>` / `release:<device_id>` | quarantine notice for any sensor, actuator or unit |
+| `slow` / `fast` | verdicts `slow_s` (5 s) late, stamped when they leave / back to normal |
+| `offline` / `online` | status offline, then silent (the Brain goes to safe mode) / online and every verdict again |
 
 ## Mock LLM
 
@@ -132,3 +195,6 @@ every message must pass, and each fault must give the code above.
 scripted backend, so other modules can be tested without the edge device or a GPU. Same topics and
 timeline events as the real module; settings in `config/llm.yaml` (`mock`). Details: `brain/README.md`,
 LLM module.
+
+The mock (only) also listens on `brain/control/llm` (`config/topics.yaml`, `control.llm`), plain JSON
+`{"mode": "offline"}`, so the scenario runner can switch its mode during a run (B12).

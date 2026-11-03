@@ -234,6 +234,8 @@ class GuardianCore:
                                  f"{v:g} outside [{spec['min']:g}, {spec['max']:g}]")
         st.values.append(v)
         step_max = (c.get("max_step") or {}).get(spec["type"])
+        if isinstance(step_max, dict) and st.ref is not None:    # {rise, fall}: a level may drop faster than it rises
+            step_max = step_max.get("rise" if v >= st.ref else "fall")
         if st.ref is not None and step_max is not None:
             allowed = float(step_max) * max(1.0, dt / self.tick_s)
             if abs(v - st.ref) > allowed:

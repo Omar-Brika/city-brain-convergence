@@ -14,3 +14,9 @@ services:
     build: ./brain
     command: python -m mocks.twin
     profiles: [mocks]
+
+  # Mock Guardian (brain/mocks/guardian): verdicts, quarantine, status. Same image and needs as twin-mock.
+  guardian-mock:
+    build: ./brain
+    command: python -m mocks.guardian
+    profiles: [mocks]

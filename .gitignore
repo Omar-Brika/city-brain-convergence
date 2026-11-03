@@ -229,3 +229,6 @@ secrets/
 brain/secrets/
 brain/logs/*
 !brain/logs/.gitkeep
+
+# Scenario run logs are evidence for the jury (R2): keep them in the repo
+!/logs/*.log
