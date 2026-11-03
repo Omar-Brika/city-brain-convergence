@@ -33,6 +33,8 @@ python -c "import secrets; print(secrets.token_hex(32))" > secrets/keys/twin-bra
 | Module | Run | Code | Team doc |
 |---|---|---|---|
 | Input (front door) | `python -m src.input` | `src/input/` | `01-input` |
+| Detection (readings and calls -> incidents) | `python -m src.detection` | `src/detection/` | `02-graph` |
+| Graph (city memory, context API on :8080) | `python -m src.graph` | `src/graph/` | `02-graph` |
 | LLM (local model, proposals) | `python -m src.llm` | `src/llm/` | `03-llm` |
 | Mock LLM (no model needed) | `python -m mocks.mock_llm [scripted\|slow\|offline\|invalid]` | `mocks/mock_llm/` | `03-llm` |
 | Twin mock (test stand-in) | `python -m mocks.twin` | `mocks/twin/` | see `mocks/README.md` |
@@ -159,3 +161,75 @@ Cases are in `tests/llm/cases.yaml` (B2, B5, B8, B10, B11 of the Test Book); eac
 - **Everything is logged** (`logs/llm.jsonl`): prompt version, model, prompt, raw answer, latency.
 
 **Mock LLM** (`python -m mocks.mock_llm <mode>`): the same service with a scripted backend, for teams without the GPU. `scripted` answers from `mock.playbook`, `slow` answers after 15 s (→ `llm_timeout`), `offline` never answers (→ `llm-status offline`), `invalid` returns broken JSON (→ `llm_invalid_output`).
+
+---
+
+## Detection module
+
+Turns the stream of readings and calls into incidents: `opened`, `updated`, `closed`, never one message per reading.
+
+```
+reading ─▶ per-sensor baseline (EWMA) ─▶ abnormal? ─┐
+call ──────────────────────────────────────────────┼─▶ per zone + type: weighted signals x Guardian trust ─▶ confidence ─▶ lifecycle ─▶ brain/internal/incident
+trust/+, layer-status/guardian ─▶ weights ─────────┘                                                                    └─▶ brain/event
+```
+
+**Consumes:** `brain/internal/meta`, `reading`, `call`, `trust/+`, `layer-status/+`. Zones, neighbours, sensors and alert levels all come from `meta`; no id is in the code.
+**Publishes:**
+
+| Topic | Retained | When |
+|---|---|---|
+| `brain/internal/incident` | no | incident `opened` / `updated` / `closed` (schema `contracts/schemas/internal-incident.schema.json`), ids `inc-0001`... |
+| `brain/event` | no | `incident_opened`, `incident_updated`, `incident_closed`, `evidence_rejected` (sealed for Twin and Guardian) |
+
+**Method** (all numbers in `config/detection.yaml`):
+
+1. **Per sensor.** Running mean and variance (cumulative for the first 20 readings, then EWMA, weight 0.05). A reading is *bad* when it is at the sensor's `alert` level, or (after warm-up) more than 3 standard deviations away in the bad direction of its type (water, air, power, density: up; speed, flow: down). Three bad readings in a row make the sensor abnormal, three good ones (z < 2 and below 0.9 x alert) normal again. Only quiet readings (|z| <= 2) are learned, so a flood or a slow rush-hour ramp is never learned as normal. A sensor silent for 10 s stops counting.
+2. **Per zone and incident type.** Each source (one sensor, or *all* recent calls of one category in the zone) gives `p = min(cap, weight x strength x trust)`; `confidence = 1 - prod(1 - p)`. Strength is 1 at alert level, else `z / 6`; for calls `count / 3`. Caps: 0.6 for one reading, 0.95 for a reading at alert level for 3 readings, 0.55 for calls, so one source alone stays low unless it is a sustained alert-level reading.
+
+   | Incident | Primary signals | Support (only with a primary) | Gates |
+   |---|---|---|---|
+   | `flood` | water level (0.9), flood calls (0.6) | water in a neighbouring zone (x 0.3) | rising to open (unless a call confirms) |
+   | `fire` | air quality (0.85), fire calls (0.6) | power spike (0.3), air in a neighbour | |
+   | `accident` | sudden speed drop (0.45), accident calls (0.6) | density (0.2) | without a call capped at 0.45: a drop alone may be a jam |
+   | `traffic_jam` | speed down >= 30 % for 20 s (0.7) | density (0.4), flow (0.3) | not during a city-wide pattern (>= 50 % of zones slow: rush hour) unless the zone is under half the city median; not when an accident explains it |
+   | `power_problem` | power load (0.8) | | not when a fire is in the zone or a neighbour |
+3. **Guardian trust:** trusted = `trust_score` or 1.0, suspicious = `trust_score` or 0.3, rejected = 0 (ignored, `evidence_rejected` on the timeline once), no verdict or Guardian offline = 0.6 and `verified: false`. Calls are not checked by Guardian: an incident with no reading evidence is never `verified`.
+4. **Lifecycle:** open at confidence >= 0.5 on 2 checks in a row; one open incident per zone + type; `updated` on a new evidence source or a severity change, at most every 5 s (a lower severity only after 15 s); closed after 2 checks below 0.25 or with no live evidence. Checks run every second and when a sensor changes state or a call arrives. `correlation_id` = the first bad reading (or first call) of the chain.
+
+**Severity:** low under 0.6 confidence; high when the value is 50 % over alert or 2 sources agree at >= 0.75; critical only with 3 sources, >= 0.9 and 50 % over alert.
+
+**Ten fake calls (B7)** are one source capped at 0.55: one `low`, unverified incident at most, closed when the calls age out (120 s). A fake flood whose sensor Guardian rejects (B3) opens nothing.
+
+---
+
+## Graph module
+
+The Brain's memory: the city map and every event, linked, in memory (stdlib only, no database server), with a small read-only HTTP API.
+
+**Consumes:** `brain/internal/meta`, `reading`, `call`, `trust/+`, `quarantine/+`, `ack`, `layer-status/+`, `incident`, `proposal`, `decision`, `outcome`. **Publishes:** nothing on MQTT; HTTP on `http.host:http.port` (`config/graph.yaml`, default `127.0.0.1:8080`, the `context.graph_url` of the LLM module).
+
+| Nodes | Links |
+|---|---|
+| zone, sensor, actuator, unit (from `meta`) | zone `NEXT_TO` zone, sensor `IN` zone, actuator `IN` / `CONTROLS` zone, unit `BASED_IN` zone |
+| reading, verdict, call, quarantine | reading `FROM` sensor, verdict `ON` reading, call `IN` zone, quarantine `ON` device |
+| incident, proposal, decision, action, ack | incident `IN` zone, incident `EVIDENCE` reading / call, proposal / decision `FOR` incident, decision `CHOSE` proposal, action `EXECUTES` decision, action `TARGETS` device, ack `CONFIRMS` action |
+
+| Endpoint | Returns |
+|---|---|
+| `GET /context/{incident_id}` | incident, evidence, zone and neighbours, actuators (own zone first) with state and quarantine, free units, `quarantined`, `related` (incidents, calls, actions in the area, last 15 min); compact JSON under 1,500 characters |
+| `GET /zone/{zone_id}` | neighbours, sensors with latest value and trust, actuators that control it, units in it, open incidents |
+| `GET /actuators?zone_id=` | actuators that control the zone with state and quarantine (all without `zone_id`) |
+| `GET /chain/{correlation_id}` | ordered steps reading -> verdict -> call -> incident -> proposals -> decision -> action -> ack |
+| `GET /graph` | nodes and edges: the city + the 20 most recent incidents and what is linked to them (for a visualization) |
+| `GET /health` | node counts per kind, dropped nodes, layer status |
+
+Unknown ids and paths answer 404 with a JSON body.
+
+**Design choices to know:**
+
+- **Normal readings are not stored.** The sensor node keeps its latest value; the last 5,000 readings and verdicts wait in a ring. A reading becomes a node when it is at alert level, when Guardian rejects or suspects it, or when an incident uses it (its chain start and its evidence).
+- **Linked by correlation_id.** Every event is indexed by the id of the external message that started its chain. Acks carry the Brain command id, so they are linked through the action that holds that `command_id`.
+- **One action node per action of a decision**; the outcomes `sent`, `acknowledged`, `failed`, `refused` update its status and history.
+- **Bounded memory:** a cap per kind (`caps`), the oldest node dropped with its links; the city is never dropped.
+- **Thread safety:** one lock; MQTT callbacks write, HTTP threads read. Answers take about a millisecond (test: < 100 ms).
