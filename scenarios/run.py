@@ -154,8 +154,19 @@ def run_one(scenario_id: str, client, keys: dict[str, bytes], topics: dict[str, 
 def connect():
     from src.common.mqtt import BrainMqtt
 
+    class RunnerMqtt(BrainMqtt):
+        """Same broker and TLS settings as the Brain, but the `tester` account: the broker ACL
+        only lets it write the mocks' control topics (twin/control, guardian/control,
+        brain/control/#), and it can read everything it has to observe."""
+
+        def _configure_security(self, c) -> None:
+            super()._configure_security(c)
+            auth = config.load("runner").get("auth", {})
+            if auth.get("username"):
+                c.username_pw_set(auth["username"], config.read_secret(auth.get("password_file")))
+
     broker = config.load("broker")
-    client = BrainMqtt(broker["client_ids"]["default_prefix"] + "scenario-runner")
+    client = RunnerMqtt(broker["client_ids"]["default_prefix"] + "scenario-runner")
     client.start()
     if not client.connected.wait(CONNECT_TIMEOUT_S):
         client.stop()

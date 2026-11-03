@@ -59,7 +59,7 @@ def check(answer: str, ctx: Context, cfg: dict[str, Any]) -> Checked:
     seen: set[tuple[str, str]] = set()
     param_spec = cfg.get("action_params")
     for i, item in enumerate(raw_actions):
-        problem, action = _check_action(item, ctx, int(v["max_params"]))
+        problem, action = _check_action(item, ctx, int(v["max_params"]), lenient_params=param_spec is not None)
         if action is not None and param_spec is not None:
             action.params = _allowed_params(action, ctx, param_spec)
         if problem:
@@ -101,7 +101,11 @@ def _allowed_params(action: ProposalAction, ctx: Context, spec: dict[str, Any]) 
     return kept
 
 
-def _check_action(item: Any, ctx: Context, max_params: int) -> tuple[str | None, ProposalAction | None]:
+def _check_action(item: Any, ctx: Context, max_params: int,
+                  lenient_params: bool = False) -> tuple[str | None, ProposalAction | None]:
+    """Device and action are checked strictly. Parameters: with an allowlist (lenient_params),
+    malformed ones are dropped like invented ones, since the action itself is valid; without
+    one, any malformed parameter refuses the action."""
     if not isinstance(item, dict):
         return "not_an_object", None
     target, action, params = item.get("target_id"), item.get("action"), item.get("params", {})
@@ -117,12 +121,16 @@ def _check_action(item: Any, ctx: Context, max_params: int) -> tuple[str | None,
     if params is None:
         params = {}
     if not isinstance(params, dict) or len(params) > max_params:
-        return "bad_params", None
+        if not lenient_params:
+            return "bad_params", None
+        params = params if isinstance(params, dict) else {}
     clean: dict[str, str | int | float | bool] = {}
     for k, val in params.items():
-        if not isinstance(k, str) or len(k) > 32 or not isinstance(val, (str, int, float, bool)):
-            return "bad_params", None
-        if isinstance(val, float) and not math.isfinite(val):
-            return "bad_params", None
+        bad = (not isinstance(k, str) or len(k) > 32 or not isinstance(val, (str, int, float, bool))
+               or (isinstance(val, float) and not math.isfinite(val)))
+        if bad:
+            if not lenient_params:
+                return "bad_params", None
+            continue
         clean[k] = clean_text(val, 64) if isinstance(val, str) else val
     return None, ProposalAction(target_id=target, action=action, params=clean)

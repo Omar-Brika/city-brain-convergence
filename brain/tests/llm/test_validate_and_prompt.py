@@ -196,11 +196,24 @@ def test_duplicate_actions_are_merged(llm_cfg):
     assert c.ok and len(c.actions) == 1
 
 
-@pytest.mark.parametrize("params", [{"a": {"nested": 1}}, {"a": [1]}, {str(i): i for i in range(9)}, "x"])
-def test_bad_params_are_refused(llm_cfg, params):
+BAD_PARAMS = [{"a": {"nested": 1}}, {"a": [1]}, {str(i): i for i in range(9)}, "x"]
+
+
+@pytest.mark.parametrize("params", BAD_PARAMS)
+def test_bad_params_are_dropped_when_an_allowlist_exists(llm_cfg, params):
     text = json.dumps({"actions": [{"target_id": "valve-port-up", "action": "open", "params": params}],
                        "justification": "x"})
-    assert not check(llm_cfg, text).ok
+    c = check(llm_cfg, text)
+    assert c.ok and c.actions[0].params == {}           # the action is kept, the junk never published
+
+
+@pytest.mark.parametrize("params", BAD_PARAMS)
+def test_bad_params_are_refused_without_an_allowlist(llm_cfg, params):
+    cfg = copy.deepcopy(llm_cfg)
+    cfg.pop("action_params")
+    text = json.dumps({"actions": [{"target_id": "valve-port-up", "action": "open", "params": params}],
+                       "justification": "x"})
+    assert not validate.check(text, build_ctx(cfg, "B2"), cfg).ok
 
 
 def test_good_params_are_kept(llm_cfg):
