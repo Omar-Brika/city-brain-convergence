@@ -35,6 +35,8 @@ python -c "import secrets; print(secrets.token_hex(32))" > secrets/keys/twin-bra
 | Input (front door) | `python -m src.input` | `src/input/` | `01-input` |
 | LLM (local model, proposals) | `python -m src.llm` | `src/llm/` | `03-llm` |
 | Mock LLM (no model needed) | `python -m mocks.mock_llm [scripted\|slow\|offline\|invalid]` | `mocks/mock_llm/` | `03-llm` |
+| Output (safety rules, signed commands) | `python -m src.output` | `src/output/` | `05-output` |
+| Timeline (live screen, run logs) | `python -m src.timeline` | `src/timeline/` | `05-output` |
 | Twin mock (test stand-in) | `python -m mocks.twin` | `mocks/twin/` | see `mocks/README.md` |
 
 Every module reads `config/*.yaml`. To use another config folder (e.g. a local broker without TLS), set `BRAIN_CONFIG_DIR=/path/to/config`.
@@ -159,3 +161,75 @@ Cases are in `tests/llm/cases.yaml` (B2, B5, B8, B10, B11 of the Test Book); eac
 - **Everything is logged** (`logs/llm.jsonl`): prompt version, model, prompt, raw answer, latency.
 
 **Mock LLM** (`python -m mocks.mock_llm <mode>`): the same service with a scripted backend, for teams without the GPU. `scripted` answers from `mock.playbook`, `slow` answers after 15 s (→ `llm_timeout`), `offline` never answers (→ `llm-status offline`), `invalid` returns broken JSON (→ `llm_invalid_output`).
+
+---
+
+## Output module
+
+The last gate. Every action of a `brain/internal/decision` goes through the safety rules; what passes becomes a signed command on `brain/cmd/{target_id}`, followed until the Twin acknowledges it and the city reacts.
+
+```
+decision ─▶ S1..S6 ─refused─▶ outcome refused + brain/event action_refused (red on the timeline)
+              │ pass
+              ▼
+   BrainCommand (brain-000042, correlation_id of the chain), sealed for Twin + Guardian ─▶ brain/cmd/{target} QoS 1
+              │ outcome sent + command_sent
+   ack done ──┼─▶ acknowledged ─▶ effect check (readings move within 30 s?) ─no─▶ failed no_effect + alert
+   rejected ──┼─▶ failed (reason) + alert command_rejected
+   nothing 4 s┴─▶ resent once, same id ─nothing 4 s─▶ failed no_ack + alert actuator_not_responding
+```
+
+**Safety rules** (`config/safety.yaml`), in this order; the first that fails refuses the action, with its rule and a reason:
+
+| # | Refused when |
+|---|---|
+| S1 | target quarantined by Guardian (`brain/internal/quarantine/+`) |
+| S2 | every piece of evidence of the incident is rejected (trust 0, or Guardian's current verdict `rejected`) |
+| S3 | risky action (`risky_actions`: valve `open`, power grid `shed`, unit `dispatch`) with fewer than 2 different sources agreeing |
+| S4 | same action on the same device sent less than 60 s ago (`s4_scope: any_action` widens it to any action) |
+| S5 | action not allowed for the device (actuator `actions`; units `dispatch` / `recall`), or target unknown / no city description yet |
+| S6 | risky action while Guardian is offline (layer status, or `mode: safe` in the decision), unless 2 different **sensor types** agree |
+
+**Counting sources (S3, S6).** Evidence is the incident's evidence list (`brain/internal/incident`) plus the decision's `evidence_sensors`, with Guardian's current verdict applied: a reading counts when its trust is above 0. Each sensor is one source. All the emergency calls of an incident count together as **one** source: detection groups calls by zone, so ten calls from one zone (B7) never replace a second sensor. S6 counts sensor types only; calls never count there.
+
+**Published:** `brain/cmd/{target_id}` (sealed, `hmacs` twin + guardian, QoS 1), `brain/internal/outcome` (`sent`; `refused` + `rule` + `detail`; `acknowledged`; `failed` + `detail` = the Twin's reason, `no_ack` or `no_effect`), `brain/event` (`command_sent`, `action_refused`, `command_acknowledged`, `command_retried`, `command_failed`, `effect_confirmed`, `safe_mode_on`, `safe_mode_off`), `brain/alert` (`actuator_not_responding`, `actuator_no_effect`, `command_rejected`).
+**Consumes:** `brain/internal/decision`, `incident`, `ack`, `reading`, `meta`, `quarantine/+`, `trust/+`, `layer-status/+`.
+
+**Design choices to know:**
+
+- **Never blocks.** Acks, retries and effect checks are timers checked by `tick()` (every 0.5 s); nothing waits.
+- **Retry = same bytes.** The retry republishes the exact signed payload (same id, same timestamp). The Twin answers a known id with its first ack and never applies it twice.
+- **Idempotent.** A decision id is executed once (remembered 1 h); a duplicate or late ack is ignored and logged.
+- **Dispatch zone.** A unit `dispatch` always carries `zone_id` = the incident zone (set if missing, replaced and logged if different).
+- **Command ids** `brain-NNNNNN` start at the tenths of a second since UTC midnight (`commands.id_start: auto`), so a restarted module never reuses an id of the same day.
+- **Effect check** (`effects` in `config/output.yaml`): valve `open` → water level falls, grid `shed` → power load falls, signal `priority` → traffic speed rises, fire truck `dispatch` → air quality falls. "Falls" = one reading at least the margin below the highest value since the command was sent (margin set above sensor noise). A projected-trend test was rejected: a flood levelling off on its own would let a stuck valve pass. Actions without an entry, or without readings, are not checked.
+- **Tolerant reader.** Unknown fields in a decision are dropped and logged, so an additive change in the scoring module never stops a command.
+
+Tests: `tests/output/`: each rule refuses its case and passes the valid one; sealing; acks, retry, alert; effect check; idempotency; and a loop through the real Twin mock and input module (valve acknowledged with effect, `stuck` valve → `no_effect`, `no_ack` → retry → alert, busy unit → `unit_busy`).
+
+---
+
+## Timeline module
+
+The demo screen (R3) and the run logs (R2). Run `python -m src.timeline`, then open `http://127.0.0.1:8090` in Chrome or Edge (F11, or F, for full screen). It is one self-contained page: no internet, no external file.
+
+**What it shows**, from its own MQTT client (`subscribe` in `config/timeline.yaml`):
+
+| Layer | Topics | Rows |
+|---|---|---|
+| TWIN | `city/+/call`, `twin/actuator/+`, `twin/unit/+`, `twin/status`, `brain/internal/reading` | calls, acks (linked to their command), unit movements, readings crossing their alert threshold, evidence readings of an incident |
+| GUARDIAN | `guardian/verdict/+`, `guardian/quarantine/+`, `guardian/status`, `brain/internal/layer-status/+` | non-trusted verdicts, verdict changes, the verdict of an incident's evidence sensors, quarantines, offline = safe mode |
+| BRAIN | `brain/event`, `brain/error`, `brain/alert`, `brain/cmd/+`, `brain/status`, `brain/internal/incident`, `decision`, `proposal` | incidents, decisions with scores, commands, refusals, rejected messages, alerts |
+| LLM | `brain/internal/llm-status`, `brain/event` `llm_*` | proposals, timeouts, online / offline |
+
+Raw readings are not rows (200 msg/s): they feed the latest values and sparklines of the city map, sampled once a second per zone.
+
+**Page layout.** Header: layer pills (TWIN, GUARDIAN, BRAIN, LLM: online / offline / degraded), a blinking SAFE MODE badge, the running scenario with its elapsed time and log file, a clock. Counter strip: messages/s, commands sent / acknowledged / refused / failed, alerts, rejected input, open incidents. Left (60 %): the live timeline, one row per event `HH:MM:SS.mmm  LAYER  text`, colour per layer; refusals, errors and alerts in red, safe mode and retries in amber, acks and confirmed effects in green; a lock mark when the HMAC was verified, a broken lock when it was wrong or missing. Rows of one chain (`correlation_id`) share the colour of their left bar. Hovering a row pauses the scroll and highlights its whole chain; clicking opens the chain (rows on screen, plus the graph's `GET /chain/{cid}` when it answers). Right: the city map (zones from the city description; red = open incident, dashed amber = quarantined device; the worst sensor against its alert as a sparkline; the units in the zone), the open incidents (type, zone, confidence bar, severity, verified) and the last decision (actions, chosen proposal against the alternatives as score bars, explanation).
+
+**Endpoints:** `/` page, `/events` (Server-Sent Events, catch-up with `Last-Event-ID`), `/api/recent`, `/api/status`, `/api/chain/{cid}`.
+
+**Run logs (R2).** A `brain/control/run` message `{run_id, scenario_id, action: start|stop}` (plain or sealed) opens `logs/<scenario_id>-<YYYYMMDD-HHMMSS>.log` in the repository-root `logs/` folder (`logs.dir: ../logs`) and closes it on `stop`. Outside runs, lines go to `logs/live-<YYYYMMDD>.log`. JSON lines: every row, with the full body of each `brain/event`, `brain/error`, alert and run message, and `shown: false` for rows logged but not displayed. Each line is flushed at once. The start message is retained: a restarted timeline continues the same file (name from the run's own timestamp, append mode), so one run gives one file.
+
+**Rehearse without a broker:** `python -m src.timeline.demo` serves a scripted flood chain on port 8091.
+
+Tests: `tests/timeline/`: every topic type with sealed envelopes, bad payloads, signature marks, log rotation on start / stop / restart, the page, `/api/*` and the SSE stream on an ephemeral port.
