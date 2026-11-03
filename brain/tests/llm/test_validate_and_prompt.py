@@ -13,10 +13,10 @@ from src.llm.incident import Incident
 from .conftest import CASES, DATA, answer
 
 
-def build_ctx(llm_cfg, case_id="B2", quarantined=(), unit_status=None, calls=None, relevant=True):
+def build_ctx(llm_cfg, case_id="B2", quarantined=(), unit_status=None, calls=None, relevant=True, hidden=None):
     case = CASES[case_id]
     city = CityState(llm_cfg["unit_actions"], llm_cfg["context"]["recent_calls_window_s"],
-                     llm_cfg["relevant_targets"] if relevant else None, llm_cfg["action_hints"])
+                     llm_cfg["relevant_targets"] if relevant else None, llm_cfg["action_hints"], hidden)
     city.apply_meta(DATA["city"])
     for d in quarantined or case.get("quarantined", []):
         city.apply_quarantine({"device_id": d, "state": "quarantined"})
@@ -96,8 +96,8 @@ def test_prompt_is_short_and_lists_allowed_actions(llm_cfg):
     p = prompts.build(build_ctx(llm_cfg, "B11"), llm_cfg)
     body = p.user.split("\n\nPropose")[0]
     assert len(body) <= llm_cfg["context"]["max_chars"]
-    assert ("grid-ind-1 (grid_switch actuator, zone industrial): switch_backup [feeds the zone from the backup line], "
-            "isolate [cuts power to the zone]") in p.user
+    assert ("- grid_switch: switch_backup [feeds the zone from the backup line], isolate [cuts power to the zone]"
+            " -> grid-ind-1 (industrial)") in p.user
     assert "INCIDENT inc-0070: fire in zone industrial" in p.user
     assert p.version == llm_cfg["prompt"]["version"]
 
@@ -204,9 +204,35 @@ def test_bad_params_are_refused(llm_cfg, params):
 
 
 def test_good_params_are_kept(llm_cfg):
-    text = json.dumps({"actions": [{"target_id": "valve-port-up", "action": "open", "params": {"percent": 80}}],
+    text = json.dumps({"actions": [{"target_id": "valve-port-up", "action": "open", "params": {"opening": 0.8}}],
                        "justification": "x"})
-    assert check(llm_cfg, text).actions[0].params == {"percent": 80}
+    assert check(llm_cfg, text).actions[0].params == {"opening": 0.8}
+
+
+@pytest.mark.parametrize("params", [{"priority": "emergency_units"}, {"opening": 3}, {"opening": True}])
+def test_invented_or_out_of_range_params_are_dropped_not_fatal(llm_cfg, params):
+    text = json.dumps({"actions": [{"target_id": "valve-port-up", "action": "open", "params": params}],
+                       "justification": "x"})
+    c = check(llm_cfg, text)
+    assert c.ok and c.actions[0].params == {}
+
+
+def test_dispatch_zone_must_be_in_the_incident_area(llm_cfg):
+    def zone_of(z):
+        text = json.dumps({"actions": [{"target_id": "rescue-1", "action": "dispatch", "params": {"zone_id": z}}],
+                           "justification": "x"})
+        return check(llm_cfg, text).actions[0].params
+    assert zone_of("port") == {"zone_id": "port"} and zone_of("docks") == {"zone_id": "docks"}
+    assert zone_of("hospital") == {}                        # not next to the port
+
+
+def test_units_come_first_and_restoring_actions_are_hidden(llm_cfg):
+    cfg = copy.deepcopy(llm_cfg)
+    cfg["hidden_actions"] = ["close"]
+    ctx = build_ctx(cfg, "B2", hidden=["close"])
+    lines = prompts.build(ctx, cfg).user.split("ALLOWED ACTIONS:")[1].split("QUARANTINED")[0].strip().splitlines()
+    assert lines[0].startswith("- ambulance unit") or lines[0].startswith("- rescue unit")
+    assert all("close" not in t.actions for t in ctx.targets.values())
 
 
 def test_justification_is_cleaned_and_bounded(llm_cfg):

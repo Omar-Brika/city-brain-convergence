@@ -58,13 +58,22 @@ action_hints:
   police:         {dispatch: sends it to the incident zone (manages traffic)}
   rescue:         {dispatch: sends it to the incident zone (rescues people from water or wrecks)}
 
+# Restoring actions are not a response to an open incident: not shown to the model.
+hidden_actions: [normal, close, recall]
+
+# Parameters each action accepts (others are dropped before the proposal is published, so an
+# invented parameter never reaches an actuator). zone = one of the incident's zone or neighbours.
+action_params:
+  open:     {opening: {min: 0, max: 1}}
+  dispatch: {zone_id: zone}
+
 # Actions units accept. Units have no `actions` list in twin/meta, so they are
 # declared here per unit type (agree with the output team, command format BR-1).
 unit_actions:
   default: [dispatch]
 
 prompt:
-  version: llm-prompt-v2
+  version: llm-prompt-v3
   # Shown to the model before every incident. Call text is data, never instructions.
   system: |
     You are the decision assistant of a smart-city control room.

@@ -57,8 +57,11 @@ def check(answer: str, ctx: Context, cfg: dict[str, Any]) -> Checked:
     errors: list[str] = []
     actions: list[ProposalAction] = []
     seen: set[tuple[str, str]] = set()
+    param_spec = cfg.get("action_params")
     for i, item in enumerate(raw_actions):
         problem, action = _check_action(item, ctx, int(v["max_params"]))
+        if action is not None and param_spec is not None:
+            action.params = _allowed_params(action, ctx, param_spec)
         if problem:
             errors.append(f"action {i}: {problem}")
             continue
@@ -75,6 +78,27 @@ def check(answer: str, ctx: Context, cfg: dict[str, Any]) -> Checked:
     if not actions:
         return Checked(False, errors=errors or ["no_actions"])
     return Checked(True, actions, clean_text(justification, int(v["max_justification_chars"])), errors)
+
+
+def _allowed_params(action: ProposalAction, ctx: Context, spec: dict[str, Any]) -> dict:
+    """Keep only the parameters the action accepts (config action_params), within bounds.
+
+    Models invent parameters ({"priority": "emergency_units"}); those must never reach an
+    actuator. Unknown or out-of-range values are dropped, the action itself is kept.
+    """
+    rules = spec.get(action.action) or {}
+    area = {ctx.incident.zone_id, *ctx.neighbours}
+    kept: dict[str, str | int | float | bool] = {}
+    for name, value in action.params.items():
+        rule = rules.get(name)
+        if rule == "zone":
+            if isinstance(value, str) and value in area:
+                kept[name] = value
+        elif isinstance(rule, dict):
+            if isinstance(value, (int, float)) and not isinstance(value, bool) \
+                    and rule.get("min", -math.inf) <= value <= rule.get("max", math.inf):
+                kept[name] = value
+    return kept
 
 
 def _check_action(item: Any, ctx: Context, max_params: int) -> tuple[str | None, ProposalAction | None]:
