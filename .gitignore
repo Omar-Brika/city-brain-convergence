@@ -229,3 +229,6 @@ secrets/
 brain/secrets/
 brain/logs/*
 !brain/logs/.gitkeep
+
+# Local tool state (agent worktrees)
+.claude/

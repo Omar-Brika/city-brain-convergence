@@ -255,11 +255,26 @@ def test_service_tracks_incidents_it_receives(make_service):
     assert "inc-0069: traffic_jam" in service.backend.prompts[0].user
 
 
-def test_extended_cases_file_is_current():
-    """cases_extended.yaml is generated: regenerate with python -m tests.llm.make_cases."""
+def test_benchmark_case_files_are_current():
+    """The benchmark files are generated: regenerate with python -m tests.llm.make_cases."""
     import yaml
     from pathlib import Path
-    from .make_cases import generate
-    on_disk = yaml.safe_load((Path(__file__).parent / "cases_extended.yaml").read_text(encoding="utf-8"))
-    assert on_disk == generate()
-    assert len(on_disk["cases"]) >= 50
+    from .make_cases import FILES
+    for name, make in FILES.items():
+        on_disk = yaml.safe_load((Path(__file__).parent / name).read_text(encoding="utf-8"))
+        assert on_disk == make(), f"{name} is out of date"
+    assert len(FILES["cases_city.yaml"]()["cases"]) >= 50
+
+
+def test_benchmark_cases_only_use_devices_of_the_demo_city():
+    from .make_cases import CITY, generate_city, generate_testbook
+    ids = {a["actuator_id"] for a in CITY["actuators"]} | {u["unit_id"] for u in CITY["units"]}
+    types = {a["type"] for a in CITY["actuators"]} | {u["type"] for u in CITY["units"]}
+    for data in (generate_city(), generate_testbook()):
+        for case in data["cases"]:
+            exp = case["expect"]
+            pairs = exp["any"] + [p for g in exp.get("also", []) for p in g]
+            for target, _ in pairs:
+                assert target in ids or target in types, (case["id"], target)
+            for target in exp.get("forbid", []) + case.get("quarantined", []):
+                assert target in ids or target in types, (case["id"], target)

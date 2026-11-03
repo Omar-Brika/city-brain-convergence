@@ -37,21 +37,26 @@ validation:
 # the model, not allowed by the answer schema and refused by validation. This is the main
 # defence against injected call text: on an accident, no text can make it open a valve.
 # An incident type missing here gets every device of the area.
+# Type names are those of twin/meta (the mock city: brain/mocks/city.yaml).
 relevant_targets:
   flood:         [valve, traffic_signal, rescue, ambulance]
-  fire:          [fire, ambulance, traffic_signal, grid_switch]
+  fire:          [fire_truck, ambulance, traffic_signal, power_grid]
   accident:      [ambulance, police, rescue, traffic_signal]
   traffic_jam:   [traffic_signal, police]
-  power_problem: [grid_switch, traffic_signal]
+  power_problem: [power_grid, traffic_signal]
 
 # What each action does, shown next to it in the prompt. twin/meta lists actions without
 # their effect, and a model cannot guess that "open" on a valve drains a flooded zone.
-# Effects must match the Twin's simulation (to confirm with the Twin team).
+# Effects match the mock Twin's simulation (brain/mocks/README.md, Commands table).
 action_hints:
   valve:          {open: drains water from the zone, close: stops draining}
-  traffic_signal: {retime: eases congestion, close_inbound: stops cars entering,
-                   green_corridor: clears a route for emergency units, divert: sends traffic around}
-  grid_switch:    {switch_backup: feeds the zone from the backup line, isolate: cuts power to the zone}
+  traffic_signal: {priority: gives way to emergency units and speeds up traffic in the zone,
+                   normal: back to the normal cycle}
+  power_grid:     {shed: cuts power load by 15 % in the zones it feeds, normal: full power back}
+  ambulance:      {dispatch: sends it to the incident zone}
+  fire_truck:     {dispatch: sends it to the incident zone (cuts smoke on scene)}
+  police:         {dispatch: sends it to the incident zone (manages traffic)}
+  rescue:         {dispatch: sends it to the incident zone (rescues people from water or wrecks)}
 
 # Actions units accept. Units have no `actions` list in twin/meta, so they are
 # declared here per unit type (agree with the output team, command format BR-1).
@@ -81,11 +86,11 @@ mock:
   # scripted answers: per incident type, the first available device or unit of each
   # (type, action) pair is used
   playbook:
-    flood:         [[valve, open], [traffic_signal, close_inbound]]
-    fire:          [[fire, dispatch], [traffic_signal, green_corridor]]
-    accident:      [[ambulance, dispatch], [traffic_signal, divert]]
-    traffic_jam:   [[traffic_signal, retime]]
-    power_problem: [[grid_switch, switch_backup]]
+    flood:         [[valve, open], [traffic_signal, priority]]
+    fire:          [[fire_truck, dispatch], [traffic_signal, priority]]
+    accident:      [[ambulance, dispatch], [traffic_signal, priority]]
+    traffic_jam:   [[traffic_signal, priority]]
+    power_problem: [[power_grid, shed]]
 
 logging:
   file: logs/llm.jsonl
