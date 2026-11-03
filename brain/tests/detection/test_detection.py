@@ -320,3 +320,70 @@ def test_sensor_baseline_frozen_while_abnormal(det_cfg):
     for i in range(300, 305):
         st.update(0.4, float(i), f"c{i}", cfg)
     assert not st.abnormal
+
+
+def test_old_calls_do_not_keep_a_flood_open_after_the_sensor_recovers(make_city, bus):
+    """Scenario B2: residents' calls made during the flood must not keep it open for their whole
+    120 s window once the trusted water sensor says the water is back to normal."""
+    city = make_city()
+    city.trust_all()
+    city.step(WARMUP)
+    city.overrides[("zone-01", "water_level")] = flood(city.n + 1)
+    city.step(5)
+    for _ in range(3):
+        city.call("zone-01", "flood", "water in the street")
+        city.step(3)
+    assert bus.incidents(status="opened")
+    city.overrides.pop(("zone-01", "water_level"))
+    city.step(10)                                    # far less than the 120 s call window
+    assert bus.incidents(status="closed"), "closed once the sensor is back to normal"
+
+
+def test_a_new_call_after_recovery_still_counts(make_city, bus, det_cfg):
+    city = make_city()
+    city.trust_all()
+    city.step(WARMUP)
+    city.overrides[("zone-01", "water_level")] = flood(city.n + 1)
+    city.step(10)
+    city.overrides.pop(("zone-01", "water_level"))
+    city.step(10)
+    assert bus.incidents(status="closed")
+    for _ in range(3):                               # residents report water again, sensor says normal
+        city.call("zone-01", "flood", "water coming back")
+        city.step(2)
+    calls_only = [i for i in bus.incidents(status="opened")]
+    assert len(calls_only) <= 2                      # a new, calls-only report is still heard (capped)
+
+
+def _twin(city, status):
+    msg = {"id": "in-ls", "timestamp": "2026-11-14T10:00:00.000Z", "layer": "twin", "status": status}
+    city.s.handle("brain/internal/layer-status/twin", json.dumps(msg), True)
+
+
+def test_twin_restart_closes_incidents_and_forgets_calls(make_city, bus):
+    """A scenario reset (Twin offline -> online) must not leave the last run's calls or incidents behind."""
+    city = make_city()
+    city.trust_all()
+    _twin(city, "online")
+    city.step(WARMUP)
+    for _ in range(3):
+        city.call("zone-05", "fire", "smoke")
+        city.step(2)
+    assert bus.incidents(status="opened", type="fire")
+    _twin(city, "offline")
+    _twin(city, "online")
+    closed = bus.incidents(status="closed", type="fire")
+    assert closed and closed[-1]["reason"] == "Twin restarted: its city state was reset"
+    city.step(10)
+    assert len(bus.incidents(status="opened", type="fire")) == 1        # the old calls do not reopen it
+
+
+def test_first_twin_online_is_not_a_restart(make_city, bus):
+    city = make_city()
+    city.trust_all()
+    city.step(WARMUP)
+    for _ in range(3):
+        city.call("zone-05", "fire", "smoke")
+        city.step(2)
+    _twin(city, "online")                       # first status seen: nothing to reset
+    assert not bus.incidents(status="closed")

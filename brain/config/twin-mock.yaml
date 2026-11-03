@@ -40,6 +40,7 @@ rush_hour: null              # e.g. {start_tick: 20, end_tick: 80}
 call_texts:
   fire: ["Thick smoke coming from a warehouse in {zone}", "Flames visible on the roof, people outside in {zone}"]
   accident: ["Two cars collided at the junction in {zone}", "Crash blocking both lanes in {zone}"]
+  flood: ["Water is coming over the quay in {zone}, the street is flooded", "Cars stuck in water up to the doors in {zone}"]
 
 # Scripted calls, published as written (the text is never altered): prompt injections (B10), floods of
 # fake calls (B7). tick (+ end_tick: one batch per tick), count per tick. Example:

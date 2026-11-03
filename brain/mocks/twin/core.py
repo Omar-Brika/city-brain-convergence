@@ -543,6 +543,8 @@ class Twin:
 
             if scenario == "flood":
                 v["water_level"] = min(2.5, 1.4 + age * .15)
+                if age >= 3 and (age - 3) % 5 == 0:     # residents report it, every 5 ticks from tick 3
+                    self._calls.append(call("flood"))
             elif scenario == "fire":
                 v["air_quality"], v["power_load"] = 250., 650.
                 self._calls.append(call("fire"))

@@ -9,6 +9,7 @@ rules:                      # turn a rule off only for a test; the jury expects 
   S4_cooldown: true         # same action on the same device again within s4_cooldown_s
   S5_allowed_action: true   # action not allowed for the device (city description); unknown target
   S6_guardian_offline: true # risky action while Guardian is offline needs 2 different sensor TYPES
+  S7_twin_offline: true     # no command while the Twin is offline: nobody would execute it
 
 # Risky actions (S3, S6). kind: actuator | unit; type: actuator or unit type from the city
 # description (omit = any type); action: the action name.
@@ -35,3 +36,6 @@ s4_scope: same_action        # same_action | any_action (any action on the same 
 s6_min_sensor_types: 2
 # Guardian layer status values that mean "offline" for S6 and safe mode
 guardian_offline_states: [offline]
+# Twin layer status values that mean "offline" for S7. When the Twin comes back online after being
+# offline (a restart, a scenario reset), its actuators are back to their defaults: cooldowns (S4) end.
+twin_offline_states: [offline]

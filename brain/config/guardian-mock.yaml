@@ -56,7 +56,10 @@ checks:
     traffic_flow: 100
     power_load: 600
     air_quality: 400
-  rebase_n: 5                # after a rejected jump, the new level is accepted once it held this many readings with noise
+  # After a rejected jump the sensor stays rejected until its value comes back near the last trusted level.
+  # rebase_n > 0 would accept a new level held that many readings with noise; off, because a forged
+  # reading with realistic noise (T5) looks exactly like that, and every real scenario step is within max_step.
+  rebase_n: 0
   frozen_suspicious_n: 5     # same value this many readings in a row -> suspicious
   frozen_rejected_n: 10      # ... -> rejected
   flatline_n: 5              # pinned at the sensor's min or max this many readings -> rejected

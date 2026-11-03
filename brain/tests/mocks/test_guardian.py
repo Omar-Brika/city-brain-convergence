@@ -345,3 +345,23 @@ def test_core_flatline_at_bound():
                         {"s": {"type": "traffic_speed", "min": 0, "max": 200}})
     outs = [core.observe({"id": f"r{i}", "sensor_id": "s", "value": v}, float(i)) for i, v in enumerate([0, 0, 0])]
     assert outs[-1][0]["reason"] == "flatline"
+
+
+def test_core_forged_noisy_level_stays_rejected_without_rebase():
+    """T5: a falsified level carries realistic noise; with rebase_n 0 (the configured default) it is never
+    accepted, while the real level coming back is trusted again."""
+    core = GuardianCore({"checks": {"max_step": {"water_level": {"rise": 1.2, "fall": 2.5}}, "rebase_n": 0},
+                         "isolate_on_reject": False},
+                        {"w": {"type": "water_level", "min": 0, "max": 5}})
+    def feed(i, v):
+        return core.observe({"id": f"r{i}", "sensor_id": "w", "value": v, "seq": i}, float(i))
+    feed(1, 0.40)
+    published = [m for i in range(2, 30) for m in feed(i, 1.80 + 0.01 * (i % 3)) if "verdict" in m]
+    assert published and {m["verdict"] for m in published} == {"rejected"}    # never trusted
+    back = [m for m in feed(30, 0.41) if "verdict" in m]
+    assert back and back[-1]["verdict"] == "trusted"
+
+
+def test_configured_guardian_does_not_rebase():
+    from src.common import config
+    assert config.load("guardian-mock")["checks"]["rebase_n"] == 0

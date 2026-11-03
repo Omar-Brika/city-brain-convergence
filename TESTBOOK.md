@@ -108,13 +108,13 @@ expectation and exits 0 / 1. Prerequisites: broker, Brain and mocks running (`sc
 | ID | B6 |
 | Name | Stuck valve |
 | Layers involved | Twin, Guardian, City Brain |
-| Description | Flood at the port; valve-01 is stuck: it acknowledges `done` but nothing changes. The Brain sees no effect, marks the command failed, raises an alert and decides again without valve-01. |
+| Description | Flood at the port; valve-01 is stuck: it acknowledges `done` but nothing changes. The Brain sees no effect, marks the command failed, raises an alert and decides again without valve-01 (zone-01 has no other valve, so the new decision reports that no valve is usable). |
 | Trigger | `python scenarios/run.py B6` |
 | Expected (Twin) | Flood in zone-01 from 5 s; valve-01 answers `done` but the water keeps rising. |
 | Expected (Guardian) | water-01 trusted. |
 | Expected (City Brain) | Command valve-01 open, ack done, then outcome failed (no effect) and brain/alert actuator_no_effect; a new decision without valve-01; valve-01 never opened twice. |
 | How to verify | Timeline: command valve-01 -> ack -> no effect -> alert -> new decision. logs/B6-*.log: the alert line for valve-01 and a second decision line, one valve-01 open command. |
-| Automatic checks | `command={"target_id":"valve-01","action":"open"} within_s=30`<br>`ack=done match={"actuator_id":"valve-01"} within_s=35`<br>`alert=actuator_no_effect match={"target_id":"valve-01"} within_s=80`<br>`outcome=failed match={"target_id":"valve-01"} within_s=80`<br>`decision=any count=2 within_s=88`<br>`max_commands={"target_id":"valve-01","action":"open","count":1}` |
+| Automatic checks | `command={"target_id":"valve-01","action":"open"} within_s=30`<br>`ack=done match={"actuator_id":"valve-01"} within_s=35`<br>`alert=actuator_no_effect match={"target_id":"valve-01"} within_s=80`<br>`outcome=failed match={"target_id":"valve-01"} within_s=80`<br>`any_of=[{"event":"decision_changed","after_s":20,"within_s":88},{"event":"decision_skipped","after_s":20,"within_s":88}]`<br>`max_commands={"target_id":"valve-01","action":"open","count":1}` |
 
 ## B7
 

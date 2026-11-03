@@ -37,6 +37,7 @@ class SensorState:
     alert_streak: int = 0
     abnormal: bool = False
     abnormal_since: float | None = None
+    recovered_at: float | None = None  # last time it went from abnormal back to normal
     onset_ts: float | None = None      # first bad reading of the current episode
     onset_corr: str | None = None      # its correlation_id (chain start)
     sudden: bool = False
@@ -46,6 +47,15 @@ class SensorState:
     last_value: float | None = None
     last_corr: str | None = None
     history: deque = field(default_factory=lambda: deque(maxlen=12))
+
+    def reset_episode(self) -> None:
+        """Forget the current abnormal episode (the Twin restarted); the learned baseline stays."""
+        self.bad_streak = self.good_streak = self.alert_streak = 0
+        self.abnormal, self.abnormal_since, self.recovered_at = False, None, None
+        self.onset_ts = self.onset_corr = None
+        self.sudden = False
+        self.skip_since = None
+        self.history.clear()
 
     # --- helpers --------------------------------------------------------------------
 
@@ -140,6 +150,7 @@ class SensorState:
             self.abnormal, self.abnormal_since, changed = True, ts, True
         elif self.abnormal and self.good_streak >= n_req:
             self.abnormal, self.abnormal_since, changed = False, None, True
+            self.recovered_at = ts
             self.onset_ts = self.onset_corr = None
             self.sudden = False
         elif not self.abnormal and not bad:

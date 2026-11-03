@@ -27,7 +27,7 @@ description `twin/meta`, and the retained state of every actuator and unit. Then
 | Topic | Content |
 |---|---|
 | `city/{zone_id}/sensor/{type}/{sensor_id}` | one reading per sensor: `traffic_speed`, `traffic_density`, `traffic_flow`, `water_level`, `power_load`, `air_quality` (`seq` = tick, `origin: simulated`) |
-| `city/{zone_id}/call` | emergency calls (`fire`, `accident` scenarios), in the zone of the scenario |
+| `city/{zone_id}/call` | emergency calls (`fire`, `accident` scenarios every tick, `flood` every 5 ticks from tick 3), in the zone of the scenario |
 | `twin/actuator/{id}`, `twin/unit/{id}` | acknowledgement of a command, and unit status changes (`en_route` → `on_scene` → `returning` → `free`) |
 
 Timestamps are wall-clock (`sim.clock: wall`, the default; the Brain refuses anything older than

@@ -4,7 +4,7 @@ Independent of MQTT, like the other services: `handle()` takes (topic, payload, 
 `tick()` runs the timeouts, and the service calls `publish`. Nothing here ever blocks.
 
 For every action of a decision:
-  safety rules S1..S6 -> refused (outcome + event action_refused)
+  safety rules S1..S6 (+ S7: Twin offline) -> refused (outcome + event action_refused)
                       -> BrainCommand sealed for Twin and Guardian on brain/cmd/{target} (QoS 1),
                          outcome sent + event command_sent
   ack `done`          -> outcome acknowledged + event command_acknowledged, effect check starts
@@ -245,7 +245,15 @@ class OutputService:
 
     def _on_layer(self, msg: dict[str, Any]) -> None:
         layer, status = msg["layer"], msg["status"]
+        was_status = self.layers.get(layer)
         self.layers[layer] = status
+        if layer == "twin":
+            offline = set(self.safety_cfg.get("twin_offline_states", ["offline"]))
+            if was_status in offline and status not in offline and self._last_sent:
+                # the Twin restarted: its actuators are back to their defaults, the cooldowns are moot
+                self._last_sent.clear()
+                self.log.info("cooldowns_cleared", reason="twin back online")
+            return
         if layer != "guardian":
             return
         safe = status in self._offline_states
@@ -325,6 +333,8 @@ class OutputService:
         ))
         if refusal is None and device is None:     # S5 turned off: still never command an unknown id
             refusal = Refusal("S5", f"unknown target {a.target_id}")
+        if refusal is None and self.rules.on("S7") and                 self.layers.get("twin") in set(self.safety_cfg.get("twin_offline_states", ["offline"])):
+            refusal = Refusal("S7", "Twin offline: the command would not be executed")
         if refusal is not None:
             self._refuse(d, a, refusal, label)
             return

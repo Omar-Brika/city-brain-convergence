@@ -219,3 +219,26 @@ def test_safe_mode_events(h):
     assert len(h.bus.events("safe_mode_on")) == 1
     h.layer("guardian", "online")
     assert len(h.bus.events("safe_mode_off")) == 1
+
+
+def test_s7_no_command_while_the_twin_is_offline(h):
+    h.incident(WATER2)
+    h.layer("twin", "offline")
+    h.decision(("signal-01", "priority", {}))
+    [o] = refused(h)
+    assert o["rule"] == "S7" and "Twin offline" in o["detail"]
+    assert sent(h) == []
+    h.layer("twin", "online")
+    h.decision(("signal-01", "priority", {}))
+    assert len(sent(h)) == 1
+
+
+def test_twin_restart_ends_the_cooldowns(h):
+    h.incident(WATER2)
+    h.layer("twin", "online")
+    h.decision(("signal-01", "priority", {}))
+    h.clock.t += 10
+    h.layer("twin", "offline")
+    h.layer("twin", "online")                      # restart: actuators back to their defaults
+    h.decision(("signal-01", "priority", {}))
+    assert len(sent(h)) == 2 and not [o for o in refused(h) if o["rule"] == "S4"]

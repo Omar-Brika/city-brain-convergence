@@ -143,6 +143,7 @@ class DetectionService:
         self.sensors: dict[str, SensorState] = {}
         self.trust: dict[str, tuple[str, float | None]] = {}   # sensor_id -> (verdict, score)
         self.guardian_online = True
+        self.twin_status: str | None = None
         self.calls: deque[Call] = deque(maxlen=500)
         self.tracks: dict[tuple[str, str], Track] = {}
         self._citywide_until = float("-inf")
@@ -179,6 +180,10 @@ class DetectionService:
             elif topic.startswith(_prefix(t["layer_status"]["topic"])):
                 if msg.get("layer") == "guardian":
                     self.guardian_online = msg.get("status") != "offline"
+                elif msg.get("layer") == "twin":
+                    was, self.twin_status = self.twin_status, msg.get("status")
+                    if was == "offline" and self.twin_status != "offline":
+                        self.twin_restarted()
             elif topic == t["meta"]["topic"]:
                 self.on_meta(msg)
         except (KeyError, TypeError, ValueError) as e:
@@ -276,7 +281,7 @@ class DetectionService:
         comb = self.cfg["combine"]
         stale_s = float(self.scfg["stale_s"])
         a = Assessment(zone, itype)
-        calls = self._call_sources(zone, spec.get("calls") or {}, now)
+        calls = self._call_sources(zone, spec.get("calls") or {}, now, self._cleared_at(zone, spec, now))
 
         def reading_source(st: SensorState, rule: dict[str, Any], role: str, factor: float) -> Source | None:
             if st.stale(now, stale_s) or not st.abnormal:
@@ -339,12 +344,37 @@ class DetectionService:
         a.sources.sort(key=lambda s: -s.p)
         return a
 
-    def _call_sources(self, zone: str, cats: dict[str, float], now: float) -> list[Source]:
+    def _cleared_at(self, zone: str, spec: dict[str, Any], now: float) -> float | None:
+        """When live, trusted primary sensors of the zone reported it back to normal.
+
+        Calls made before that no longer count (config calls.superseded_by_recovery): a resident's
+        report from two minutes ago must not keep a flood open once the water sensor, newer and
+        trusted, says it is over. None if any primary sensor is still abnormal, or none can tell.
+        """
+        if not self.cfg["calls"].get("superseded_by_recovery", True):
+            return None
+        stale_s = float(self.scfg["stale_s"])
+        cleared = None
+        for stype, rule in (spec.get("sensors") or {}).items():
+            if rule.get("role", "primary") != "primary":
+                continue
+            for st in self._zone_sensors(zone, stype):
+                if st.stale(now, stale_s) or self.weight(st.sensor_id)[0] <= 0:
+                    continue                      # silent or rejected: cannot contradict a call
+                if st.abnormal:
+                    return None
+                if st.recovered_at is not None:
+                    cleared = st.recovered_at if cleared is None else max(cleared, st.recovered_at)
+        return cleared
+
+    def _call_sources(self, zone: str, cats: dict[str, float], now: float,
+                      not_before: float | None = None) -> list[Source]:
         c = self.cfg["calls"]
         window = float(c["window_s"])
         out = []
         for cat, weight in cats.items():
-            recent = [k for k in self.calls if k.zone_id == zone and k.category == cat and now - k.at <= window]
+            recent = [k for k in self.calls if k.zone_id == zone and k.category == cat and now - k.at <= window
+                      and (not_before is None or k.at > not_before)]
             if not recent:
                 continue
             strength = min(1.0, len(recent) / float(c["full_count"]))
@@ -488,6 +518,21 @@ class DetectionService:
         inc.last_update = now
         inc.verified = self._verified(a)
         self._emit(inc, a, "updated", "; ".join(parts))
+
+    def twin_restarted(self) -> None:
+        """The Twin came back after being offline (a restart or a scenario reset): its city state was
+        reset, so what was learned about the current situation is stale. Open incidents are closed
+        with that reason, recent calls and sensor episodes are forgotten; baselines are kept."""
+        if not self.cfg.get("lifecycle", {}).get("reset_on_twin_restart", True):
+            return
+        for (zone, itype), tr in self.tracks.items():
+            if tr.incident is not None:
+                self._emit(tr.incident, Assessment(zone, itype), "closed", "Twin restarted: its city state was reset")
+        self.tracks.clear()
+        self.calls.clear()
+        for st in self.sensors.values():
+            st.reset_episode()
+        self.log.info("twin_restarted", note="incidents closed, calls and sensor episodes forgotten")
 
     def _close(self, tr: Track, a: Assessment) -> None:
         inc = tr.incident

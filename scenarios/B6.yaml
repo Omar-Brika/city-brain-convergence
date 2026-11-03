@@ -3,7 +3,8 @@ name: Stuck valve
 layers: [twin, guardian, brain]
 description: >
   Flood at the port; valve-01 is stuck: it acknowledges `done` but nothing changes. The Brain sees
-  no effect, marks the command failed, raises an alert and decides again without valve-01.
+  no effect, marks the command failed, raises an alert and decides again without valve-01
+  (zone-01 has no other valve, so the new decision reports that no valve is usable).
 trigger: python scenarios/run.py B6
 expected:
   twin: Flood in zone-01 from 5 s; valve-01 answers `done` but the water keeps rising.
@@ -23,5 +24,9 @@ expect:
   - {ack: done, match: {actuator_id: valve-01}, within_s: 35}
   - {alert: actuator_no_effect, match: {target_id: valve-01}, within_s: 80}
   - {outcome: failed, match: {target_id: valve-01}, within_s: 80}
-  - {decision: any, count: 2, within_s: 88}
+  # deciding again without valve-01: a new decision if another action helps, else a reasoned skip
+  # (zone-01 has a single valve, so "no usable valve" is the expected answer here)
+  - any_of:
+      - {event: decision_changed, after_s: 20, within_s: 88}
+      - {event: decision_skipped, after_s: 20, within_s: 88}
   - {max_commands: {target_id: valve-01, action: open, count: 1}}
