@@ -113,6 +113,7 @@ def llm_cfg() -> dict[str, Any]:
     cfg["relevant_targets"] = copy.deepcopy(TEST_CITY_POLICY["relevant_targets"])
     cfg["action_hints"] = copy.deepcopy(TEST_CITY_POLICY["action_hints"])
     cfg["mock"]["playbook"] = copy.deepcopy(TEST_CITY_POLICY["playbook"])
+    cfg["context"]["neighbour_actuators"] = True      # the test city's cases rely on neighbouring devices
     return cfg
 
 

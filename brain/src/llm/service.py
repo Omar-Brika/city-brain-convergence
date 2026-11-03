@@ -73,7 +73,8 @@ class LlmService:
         ctx_cfg = self.cfg["context"]
         self.city = CityState(self.cfg.get("unit_actions", {}), float(ctx_cfg["recent_calls_window_s"]),
                               self.cfg.get("relevant_targets"), self.cfg.get("action_hints"),
-                              self.cfg.get("hidden_actions"))
+                              self.cfg.get("hidden_actions"),
+                              bool(self.cfg["context"].get("neighbour_actuators", True)))
         self.budget_s = float(self.cfg["budget"]["answer_s"])
         self._jobs: queue.PriorityQueue[tuple[int, int, Job]] = queue.PriorityQueue()
         self._latest: dict[str, int] = {}        # incident_id -> latest version (0 = closed)

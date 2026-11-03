@@ -65,11 +65,14 @@ class CityState:
     def __init__(self, unit_actions: dict[str, list[str]], recent_calls_window_s: float,
                  relevant_targets: dict[str, list[str]] | None = None,
                  action_hints: dict[str, dict[str, str]] | None = None,
-                 hidden_actions: list[str] | None = None):
+                 hidden_actions: list[str] | None = None, neighbour_actuators: bool = True):
         self.unit_actions = unit_actions
         self.relevant = relevant_targets or {}
         self.hints = action_hints or {}
         self.hidden = set(hidden_actions or [])     # restoring actions (normal, close): not a response
+        # actuators that only act on a neighbouring zone (a signal next door) rarely help, and a
+        # long list of them crowds the emergency units out of a small model's answer
+        self.neighbour_actuators = neighbour_actuators
         self.window_s = recent_calls_window_s
         self.zones: dict[str, list[str]] = {}          # zone_id -> adjacent zones
         self.actuators: dict[str, dict[str, Any]] = {}
@@ -121,7 +124,7 @@ class CityState:
         area = {zone, *neighbours}
         targets: dict[str, Target] = {}
         # actuators of the zone first, then those of neighbouring zones
-        for near in (True, False):
+        for near in (True, False) if self.neighbour_actuators else (True,):
             for a in self.actuators.values():
                 controls = set(a.get("controls") or []) | {a["zone_id"]}
                 own = zone in controls

@@ -304,3 +304,12 @@ def test_benchmark_cases_only_use_devices_of_the_demo_city():
                 assert target in ids or target in types, (case["id"], target)
             for target in exp.get("forbid", []) + case.get("quarantined", []):
                 assert target in ids or target in types, (case["id"], target)
+
+
+def test_neighbour_actuators_can_be_left_out(llm_cfg):
+    city = CityState(llm_cfg["unit_actions"], 900, None, None, None, neighbour_actuators=False)
+    city.apply_meta(DATA["city"])
+    ctx = city.build(Incident.model_validate(CASES["B2"]["incident"]), 0, 3)       # port
+    assert "valve-port-up" in ctx.targets and "signal-port-2" in ctx.targets
+    assert "valve-docks" not in ctx.targets and "signal-centre-1" not in ctx.targets
+    assert "rescue-1" in ctx.targets                                                # units: all free ones
