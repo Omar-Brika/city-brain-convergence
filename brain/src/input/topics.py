@@ -40,7 +40,7 @@ class TopicRouter:
             if len(levels) != len(route.parts):
                 continue
             found: dict[str, str] = {}
-            for part, level in zip(route.parts, levels):
+            for part, level in zip(route.parts, levels, strict=True):   # lengths checked above
                 if _is_var(part):
                     found[part[1:-1]] = level
                 elif part != level:

@@ -16,7 +16,7 @@ from datetime import datetime, timedelta, timezone
 from random import Random
 from threading import RLock
 from functools import cache
-from typing import Any, Literal
+from typing import Any
 
 from .city import UNIT_ACTIONS, City, load_city
 
@@ -538,7 +538,7 @@ class Twin:
             scenario, started = self._scenarios.get(zone, ("calm", 0))
             age = self.tick - started
 
-            def call(category: str) -> dict:
+            def call(category: str, zone: str = zone) -> dict:     # bound now, not at call time
                 return self._make_call(zone, category)
 
             if scenario == "flood":

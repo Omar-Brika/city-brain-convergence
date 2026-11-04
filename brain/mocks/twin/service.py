@@ -20,7 +20,7 @@ from typing import Any, Callable
 
 from src.common import config
 from src.common.envelope import EnvelopeError, parse_envelope, seal, verify_hmac
-from src.common.log import EventLogger, utc_now_iso
+from src.common.log import EventLogger
 
 from .city import load_city
 from .core import Fault, SimConfig, Twin

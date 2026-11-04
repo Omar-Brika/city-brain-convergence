@@ -12,7 +12,6 @@ from mocks.mock_llm.backend import MockBackend
 from src.llm.backends import BackendTimeout, BackendUnavailable, OllamaBackend
 from src.llm.bench import bench_model, load_cases
 
-from .conftest import CASES, Clock
 
 PROPOSAL = "brain/internal/proposal"
 

@@ -25,7 +25,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 
 from ..common import config
 from ..common.envelope import body_text, seal_multi
@@ -203,7 +203,7 @@ class OutputService:
         try:
             with self._lock:
                 now = self.clock()
-                for cid, p in list(self.pending.items()):
+                for p in list(self.pending.values()):
                     if now - p.sent_at < self.ack_timeout_s:
                         continue
                     if p.attempts <= self.retries:

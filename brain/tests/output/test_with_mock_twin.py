@@ -17,7 +17,7 @@ from src.common.log import EventLogger
 from src.input.service import InputService
 from src.output.service import OutputService
 
-from .conftest import GUARDIAN_KEY, KEYS, TWIN_KEY, Bus, Clock
+from .conftest import KEYS, TWIN_KEY, Bus, Clock
 
 T0 = datetime(2026, 11, 14, 10, 22, 0, tzinfo=timezone.utc).timestamp()
 

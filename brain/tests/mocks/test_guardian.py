@@ -36,7 +36,7 @@ class GuardianRig(Rig):
         self.feed_guardian()
 
     def feed_guardian(self) -> None:
-        for topic, payload, _qos, retain in self.g_bus.sent[self.g_fed:]:
+        for topic, payload, _qos, _retain in self.g_bus.sent[self.g_fed:]:
             self.brain.handle(topic, payload, False)     # live delivery: subscribers get retain=0
         self.g_fed = len(self.g_bus.sent)
 

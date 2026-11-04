@@ -354,7 +354,6 @@ def test_call_ids_differ_across_runs():
 
 # --- the multi-zone city (mocks/city.yaml) ---------------------------------------------------------------
 
-import yaml
 
 from mocks.twin.city import parse_city
 

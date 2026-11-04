@@ -6,7 +6,6 @@ import json
 
 from src.common.envelope import seal
 
-from .conftest import KEYS
 
 
 def one(rows):
@@ -58,7 +57,7 @@ def test_suppressed_events_are_logged_not_shown(h):
 
 def test_brain_error_row_and_rate_limit(h):
     for i in range(8):
-        h.brain("brain/error", {"code": "E_AUTH", "topic": f"city/zone-01/sensor/water_level/water-01",
+        h.brain("brain/error", {"code": "E_AUTH", "topic": "city/zone-01/sensor/water_level/water-01",
                                 "message_id": f"twin-{i}", "detail": "HMAC does not match"})
     shown = [r for r in h.s.recent() if r["kind"] == "input_rejected"]
     assert len(shown) == 5 and shown[0]["level"] == "error" and "E_AUTH" in shown[0]["text"]

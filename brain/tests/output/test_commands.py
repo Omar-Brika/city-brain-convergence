@@ -207,7 +207,7 @@ def test_effect_confirmed_when_water_turns_down(h):
 
 
 def test_flood_levelling_off_is_not_an_effect(h):
-    v = rising(h, 1.4, 6)
+    rising(h, 1.4, 6)
     cmd = send_valve(h)
     h.ack(cmd["id"], "valve-01")
     for i in range(31):                                     # plateau with +-2 % noise, stuck valve

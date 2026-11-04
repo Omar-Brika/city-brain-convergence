@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 import pytest
 
 from src.common import config
-from src.common.envelope import seal, seal_multi
+from src.common.envelope import seal_multi
 from src.common.log import EventLogger
 from src.input.service import InputService
 from mocks.twin.service import TwinService
