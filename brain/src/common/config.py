@@ -57,3 +57,21 @@ def read_secret(path: str | None) -> str | None:
     if not p.is_file():
         return None
     return p.read_text(encoding="utf-8").strip()
+
+
+def outgoing_seal_keys(security: dict[str, Any] | None = None) -> dict[str, bytes] | None:
+    """HMAC keys that seal what the Brain publishes outside brain/internal/ (brain/event, brain/cmd,
+    brain/alert): one per receiving layer (security.yaml outgoing.hmacs_for). None if sealing is off.
+    Exits with a clear message when a key file is missing (entry points only)."""
+    security = security or load("security")
+    out = security.get("outgoing", {})
+    if not out.get("seal", True):
+        return None
+    keys: dict[str, bytes] = {}
+    for layer in out.get("hmacs_for", []):
+        text = read_secret(security["hmac_keys"][layer])
+        if not text:
+            raise SystemExit(f"missing HMAC key for {layer}: {resolve(security['hmac_keys'][layer])} "
+                             "(run python tools/setup.py, see brain/README.md)")
+        keys[layer] = text.encode("utf-8")
+    return keys

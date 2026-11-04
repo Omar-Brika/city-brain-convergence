@@ -27,11 +27,10 @@ import json
 import threading
 import time
 from collections import OrderedDict
-from datetime import datetime, timezone
 from typing import Any, Callable
 
 from ..common import config
-from ..common.log import EventLogger
+from ..common.log import EventLogger, iso_utc
 from .store import CITY_KINDS, Graph, Node
 
 STAGES = {"reading": 0, "verdict": 1, "call": 2, "incident": 3, "proposal": 4, "decision": 5,
@@ -499,8 +498,7 @@ def fit(doc: dict[str, Any], max_chars: int) -> dict[str, Any]:
     return doc
 
 
-def _iso(t: float) -> str:
-    return datetime.fromtimestamp(t, timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+_iso = iso_utc
 
 
 def _chain_item(n: Node) -> dict[str, Any]:

@@ -11,7 +11,6 @@ import threading
 
 from ..common import config
 from ..common.mqtt import BrainMqtt
-from ..llm.__main__ import seal_keys
 from .service import ScoringService
 
 
@@ -21,7 +20,7 @@ def main() -> None:
     def publish(topic: str, payload: str, qos: int, retain: bool) -> None:
         client.publish(topic, payload, qos, retain)
 
-    service = ScoringService(publish, seal_keys=seal_keys(config.load("security")))
+    service = ScoringService(publish, seal_keys=config.outgoing_seal_keys())
     broker = config.load("broker")
     client = BrainMqtt(broker["client_ids"]["default_prefix"] + "scoring", logger=service.log)
     client.on_message = service.handle

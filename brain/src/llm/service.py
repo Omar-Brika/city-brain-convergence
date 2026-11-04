@@ -24,10 +24,10 @@ from typing import Any, Callable
 from pydantic import ValidationError
 
 from ..common import config
-from ..common.envelope import body_text, seal_multi
+from ..common.events import publish_event
 from ..common.ids import IdGenerator
 from ..common.log import EventLogger, utc_now_iso
-from ..common.models import SEVERITY_RANK, LlmStatus, Proposal, TimelineEvent
+from ..common.models import SEVERITY_RANK, LlmStatus, Proposal
 from . import prompt as prompts
 from . import validate
 from .backends import BackendTimeout, BackendUnavailable, LlmBackend
@@ -298,11 +298,6 @@ class LlmService:
         return "skipped"
 
     def _event(self, event: str, summary: str, inc: Incident | None = None) -> None:
-        body = TimelineEvent(
-            id=self.ids.next(), timestamp=utc_now_iso(), event=event, summary=summary,
-            correlation_id=inc.correlation_id if inc else None,
-            incident_id=inc.incident_id if inc else None,
-        ).model_dump(exclude_none=True)
-        payload = seal_multi(body, self.seal_keys) if self.seal_keys else body_text(body)
-        spec = self.topics["external_out"]["event"]
-        self._publish(spec["topic"], payload, int(spec["qos"]), bool(spec["retain"]))
+        publish_event(self._publish, self.topics, self.ids, self.seal_keys, event, summary,
+                      correlation_id=inc.correlation_id if inc else None,
+                      incident_id=inc.incident_id if inc else None)

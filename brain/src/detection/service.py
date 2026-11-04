@@ -47,10 +47,10 @@ from datetime import datetime
 from typing import Any, Callable
 
 from ..common import config
-from ..common.envelope import body_text, seal_multi
+from ..common.events import publish_event
 from ..common.ids import IdGenerator
 from ..common.log import EventLogger, utc_now_iso
-from ..common.models import SEVERITY_RANK, Incident, IncidentEvidence, TimelineEvent
+from ..common.models import SEVERITY_RANK, Incident, IncidentEvidence
 from .sensors import SensorState
 
 Publisher = Callable[[str, str, int, bool], None]   # topic, payload, qos, retain
@@ -584,13 +584,8 @@ class DetectionService:
         return f"{zone_id} {name}" if name else zone_id
 
     def _event(self, event: str, summary: str, correlation_id: str | None, incident_id: str | None) -> None:
-        body = TimelineEvent(
-            id=self.ids.next(), timestamp=utc_now_iso(), event=event, summary=summary,
-            correlation_id=correlation_id, incident_id=incident_id,
-        ).model_dump(exclude_none=True)
-        payload = seal_multi(body, self.seal_keys) if self.seal_keys else body_text(body)
-        spec = self.topics["external_out"]["event"]
-        self._publish(spec["topic"], payload, int(spec["qos"]), bool(spec["retain"]))
+        publish_event(self._publish, self.topics, self.ids, self.seal_keys, event, summary,
+                      correlation_id=correlation_id, incident_id=incident_id)
 
     # --- introspection (tests, logs) -------------------------------------------------
 

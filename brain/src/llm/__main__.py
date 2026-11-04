@@ -18,21 +18,6 @@ from .context import GraphContextClient
 from .service import LlmService
 
 
-def seal_keys(security: dict[str, Any]) -> dict[str, bytes] | None:
-    """Keys used to seal brain/event (an external topic), as the input module does."""
-    out = security.get("outgoing", {})
-    if not out.get("seal", True):
-        return None
-    keys: dict[str, bytes] = {}
-    for layer in out.get("hmacs_for", []):
-        text = config.read_secret(security["hmac_keys"][layer])
-        if not text:
-            sys.exit(f"missing HMAC key for {layer}: {config.resolve(security['hmac_keys'][layer])} "
-                     "(see brain/README.md)")
-        keys[layer] = text.encode("utf-8")
-    return keys
-
-
 def build_backend(cfg: dict[str, Any]) -> LlmBackend:
     kind = cfg["backend"]["kind"]
     if kind == "ollama":
@@ -48,7 +33,7 @@ def run(backend: LlmBackend, client_suffix: str = "llm") -> None:
         lambda *a: client.publish(*a),
         backend,
         graph=GraphContextClient(graph_url) if graph_url else None,
-        seal_keys=seal_keys(config.load("security")),
+        seal_keys=config.outgoing_seal_keys(),
     )
     status = topics["internal"]["llm_status"]
     broker = config.load("broker")

@@ -16,13 +16,18 @@ from __future__ import annotations
 import json
 import threading
 import time
-from datetime import datetime, timezone
 from typing import Any, Callable
 
 from src.common import config
-from src.common.envelope import EnvelopeError, parse_envelope, seal, seal_multi, verify_hmac
+from src.common.envelope import (
+    EnvelopeError,
+    parse_envelope,
+    seal,
+    seal_multi,
+    verify_hmac,
+)
 from src.common.ids import IdGenerator
-from src.common.log import EventLogger
+from src.common.log import EventLogger, iso_utc
 
 from ..twin.city import load_city
 from .core import GuardianCore
@@ -74,7 +79,7 @@ class GuardianService:
         return base if self._resets == 0 else f"{base}r{self._resets}"
 
     def _now_iso(self) -> str:
-        return datetime.fromtimestamp(self.clock(), timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+        return iso_utc(self.clock())
 
     def _seal(self, body: dict[str, Any]) -> str:
         if self.cfg.get("envelope", "hmac") == "hmacs":

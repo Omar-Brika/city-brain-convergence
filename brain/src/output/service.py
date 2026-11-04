@@ -22,15 +22,15 @@ import json
 import threading
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Any, Callable
 
 from pydantic import BaseModel
 
 from ..common import config
-from ..common.envelope import body_text, seal_multi
+from ..common.envelope import seal_for
+from ..common.events import publish_event
 from ..common.ids import IdGenerator
-from ..common.log import EventLogger
+from ..common.log import EventLogger, iso_utc
 from ..common.models import (
     BrainAlert,
     BrainCommand,
@@ -39,7 +39,6 @@ from ..common.models import (
     InternalAck,
     Outcome,
     ProposalAction,
-    TimelineEvent,
 )
 from .effects import EffectCheck, EffectTracker
 from .safety import CheckInput, Device, Refusal, SafetyRules, Source
@@ -500,9 +499,8 @@ class OutputService:
                 del self._last_sent[k]
 
     def _iso(self) -> str:
-        """ISO 8601 UTC with milliseconds, from the service clock (the Twin checks command age)."""
-        dt = datetime.fromtimestamp(self.clock(), timezone.utc)
-        return dt.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+        """From the service clock (the Twin checks command age)."""
+        return iso_utc(self.clock())
 
     def _zone(self, zone_id: str) -> str:
         name = self.zone_names.get(zone_id)
@@ -513,7 +511,7 @@ class OutputService:
         return (" [" + ", ".join(f"{k}={v}" for k, v in params.items()) + "]") if params else ""
 
     def _seal(self, body: dict[str, Any]) -> str:
-        return seal_multi(body, self.seal_keys) if self.seal_keys else body_text(body)
+        return seal_for(body, self.seal_keys)
 
     def _outcome(self, d: Decision, target_id: str, action: str, status: str, **fields: Any) -> None:
         o = Outcome(id=self.ids.next(), timestamp=self._iso(), correlation_id=d.correlation_id,
@@ -523,12 +521,9 @@ class OutputService:
         self._publish(spec["topic"], o.to_json(), int(spec["qos"]), bool(spec["retain"]))
 
     def _event(self, event: str, summary: str, d: Decision | None = None) -> None:
-        body = TimelineEvent(id=self.ids.next(), timestamp=self._iso(), event=event, summary=summary,
-                             correlation_id=d.correlation_id if d else None,
-                             incident_id=d.incident_id if d else None)
-        spec = self.topics["external_out"]["event"]
-        self._publish(spec["topic"], self._seal(body.model_dump(exclude_none=True)), int(spec["qos"]),
-                      bool(spec["retain"]))
+        publish_event(self._publish, self.topics, self.ids, self.seal_keys, event, summary,
+                      correlation_id=d.correlation_id if d else None,
+                      incident_id=d.incident_id if d else None, timestamp=self._iso())
 
     def _alert(self, alert: str, cmd: BrainCommand, detail: str) -> None:
         body = BrainAlert(id=self.ids.next(), timestamp=self._iso(), correlation_id=cmd.correlation_id,

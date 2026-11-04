@@ -21,19 +21,17 @@ import re
 import threading
 import time
 from collections import deque
-from datetime import datetime, timezone
 from typing import Any, Callable
 
 from ..common import config
 from ..common.envelope import EnvelopeError, parse_envelope, verify_hmac
-from ..common.log import EventLogger
+from ..common.log import EventLogger, iso_utc
 from .runlog import RunLog, parse_iso
 
 ROW_FIELDS = ("seq", "ts", "rx", "layer", "kind", "text", "level", "cid", "incident_id", "topic", "signed")
 
 
-def iso(t: float) -> str:
-    return datetime.fromtimestamp(t, timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+iso = iso_utc
 
 
 def _pattern(template: str) -> re.Pattern[str]:

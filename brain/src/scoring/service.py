@@ -30,7 +30,8 @@ from typing import Any, Callable
 from pydantic import ValidationError
 
 from ..common import config
-from ..common.envelope import EnvelopeError, body_text, parse_envelope, seal_multi, sign
+from ..common.envelope import EnvelopeError, parse_envelope, sign
+from ..common.events import publish_event
 from ..common.ids import IdGenerator
 from ..common.log import EventLogger, utc_now_iso
 from ..common.models import (
@@ -41,7 +42,6 @@ from ..common.models import (
     Outcome,
     Proposal,
     ProposalAction,
-    TimelineEvent,
 )
 from ..rules.engine import RuleEngine
 from .city import CityView
@@ -708,11 +708,6 @@ class ScoringService:
     # --- helpers --------------------------------------------------------------------
 
     def _event(self, event: str, summary: str, inc: Incident | None = None) -> None:
-        body = TimelineEvent(
-            id=self.ids.next(), timestamp=utc_now_iso(), event=event, summary=summary,
-            correlation_id=inc.correlation_id if inc else None,
-            incident_id=inc.incident_id if inc else None,
-        ).model_dump(exclude_none=True)
-        payload = seal_multi(body, self.seal_keys) if self.seal_keys else body_text(body)
-        spec = self.topics["external_out"]["event"]
-        self._publish(spec["topic"], payload, int(spec["qos"]), bool(spec["retain"]))
+        publish_event(self._publish, self.topics, self.ids, self.seal_keys, event, summary,
+                      correlation_id=inc.correlation_id if inc else None,
+                      incident_id=inc.incident_id if inc else None)
