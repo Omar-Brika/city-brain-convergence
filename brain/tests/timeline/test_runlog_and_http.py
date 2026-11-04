@@ -27,7 +27,8 @@ def test_run_start_and_stop_make_exactly_one_file(h):
     h.brain("brain/event", {"event": "x", "summary": "after"})
     runs = sorted(f.name for f in h.logdir.glob("B3-*.log"))
     assert len(runs) == 1
-    assert runs[0] == "B3-" + time.strftime("%Y%m%d-%H%M%S", time.localtime(h.clock.t)) + ".log"
+    # UTC, the same name the scenario runner gives its own log of the run
+    assert runs[0] == "B3-" + time.strftime("%Y%m%d-%H%M%S", time.gmtime(h.clock.t)) + ".log"
     lines = h.lines(runs[0])
     assert [line["kind"] for line in lines] == ["run_start", "action_refused", "input_rejected", "run_stop"]
     assert lines[1]["body"]["event"] == "action_refused"      # full brain/event body kept

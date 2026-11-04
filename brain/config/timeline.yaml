@@ -10,7 +10,9 @@ graph:
   timeout_s: 1.5               # past this the page shows the locally grouped chain only
 
 logs:
-  dir: ../logs              # relative to brain/: the repository-root logs/ folder (R2)
+  # relative to brain/. The scenario runner writes THE log of each run in logs/ (R2: one file per run);
+  # the timeline keeps what it displayed, under the same name, in logs/timeline/.
+  dir: ../logs/timeline
   live_prefix: live         # outside a run: live-<YYYYMMDD>.log
   fsync: false              # true = os.fsync after every line (power-cut safe, slower); lines are always flushed
 

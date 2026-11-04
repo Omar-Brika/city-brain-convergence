@@ -57,8 +57,8 @@ class RunLog:
             if self.run is not None and run_id and self.run.get("run_id") == run_id:
                 return self.path                      # same run announced again (retained, reconnect)
             started = parse_iso(started_iso) or datetime.fromtimestamp(self.clock(), timezone.utc)
-            local = started.astimezone()
-            name = f"{safe_name(scenario_id or 'scenario')}-{local:%Y%m%d-%H%M%S}.log"
+            utc = started.astimezone(timezone.utc)       # same name as the runner's log (UTC), so they pair up
+            name = f"{safe_name(scenario_id or 'scenario')}-{utc:%Y%m%d-%H%M%S}.log"
             self._open(self.dir / name)
             self.run = {"run_id": run_id, "scenario_id": scenario_id,
                         "started": started.isoformat(timespec="milliseconds").replace("+00:00", "Z"),

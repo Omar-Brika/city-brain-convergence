@@ -94,6 +94,17 @@ def run_one(scenario_id: str, client, keys: dict[str, bytes], topics: dict[str, 
     if rec.meta:
         city = lib.city_from_meta(rec.meta)     # the city the Brain actually knows
 
+    # LLM modes (offline, slow, invalid) are obeyed by the mock LLM only. With the real LLM they would
+    # have no effect and the run would prove nothing, so it is skipped with the command to use.
+    llm_modes = {s.body.get("mode") for s in lib.plan(sc) if s.channel == "llm"} - {"scripted"}
+    model = next((m["body"].get("model") for m in reversed(rec.messages)
+                  if m["topic"] == "brain/internal/llm-status" and isinstance(m.get("body"), dict)), None)
+    if llm_modes and model and not str(model).startswith("mock:"):
+        print(f"== {scenario_id}: {sc['name']}\n  [SKIP] needs the mock LLM (modes {sorted(llm_modes)}), the "
+              f"running LLM is {model}: start the Brain with `python run.py --mocks --mock-llm`, or stop Ollama "
+              f"by hand for the live drill")
+        return True
+
     started = datetime.now(timezone.utc)
     run_id = f"run-{scenario_id}-{started:%Y%m%d-%H%M%S}"
     sent: list[dict[str, Any]] = []

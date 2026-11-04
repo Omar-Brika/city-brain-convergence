@@ -17,9 +17,12 @@ backend:
 budget:
   answer_s: 8                   # time budget from incident received to proposal published (03-llm 4.3)
   context_s: 1                  # max time spent asking the graph for context
+  # Reachable but too slow (cold model, GPU throttled on battery): after this many timeouts in a row
+  # llm-status goes offline so scoring decides at once; back online when a probe answers in time.
+  offline_after_timeouts: 2
 
 context:
-  graph_url: http://localhost:8080   # graph context API (02-graph 5.2); empty = local context only
+  graph_url: http://127.0.0.1:8080   # graph context API (02-graph 5.2); 127.0.0.1: on Windows localhost adds ~2 s (IPv6 first), more than context_s
   max_chars: 1500               # prompt context limit (03-llm 4.1)
   recent_calls_window_s: 900    # calls in the same / neighbouring zones, last 15 min
   max_calls: 3

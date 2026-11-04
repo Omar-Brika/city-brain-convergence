@@ -81,6 +81,8 @@ class LlmService:
         self._versions = 0
         self._lock = threading.Lock()
         self.status: str | None = None
+        self._slow_in_row = 0                     # consecutive answers over the budget
+        self._too_slow = False                    # offline because too slow, not unreachable
         self._last_health = float("-inf")
 
     # --- inputs -------------------------------------------------------------------
@@ -179,6 +181,13 @@ class LlmService:
         try:
             answer = self.backend.generate(p, remaining)
         except BackendTimeout:
+            self._slow_in_row += 1
+            limit = int(self.cfg["budget"].get("offline_after_timeouts", 2))
+            if limit and self._slow_in_row >= limit:
+                # reachable but too slow (cold model, GPU throttled on battery): say so, so the
+                # scoring module decides on its rules at once instead of waiting the budget each time
+                self._too_slow = True
+                self.set_status("offline", f"{self._slow_in_row} answers in a row over the {self.budget_s:g} s budget")
             return self._timeout(job, f"no answer within {self.budget_s:g} s")
         except BackendUnavailable as e:
             self.set_status("offline", str(e)[:200])
@@ -193,7 +202,9 @@ class LlmService:
         if self._superseded(job):
             self.log.info("llm_answer_dropped", incident_id=inc.incident_id, reason="newer update or closed")
             return "superseded"
+        self._slow_in_row = 0
         if self.status != "online":
+            self._too_slow = False
             self.set_status("online")
 
         checked = validate.check(answer, ctx, self.cfg)
@@ -225,6 +236,8 @@ class LlmService:
             return
         self._last_health = now
         ok, reason = self.backend.health()
+        if ok and self._too_slow:
+            ok, reason = self._probe()               # reachable is not enough: it must answer in time
         was = self.status
         self.set_status("online" if ok else "offline", reason)
         if ok and was == "offline":
@@ -234,6 +247,21 @@ class LlmService:
                 self.log.info("llm_warmed_up", model=self.backend.name, after="recovery")
             except Exception as e:
                 self.log.warning("llm_warmup_failed", error=repr(e)[:200])
+
+    def _probe(self) -> tuple[bool, str | None]:
+        """After repeated timeouts: a tiny real answer must come back within the budget."""
+        probe = getattr(self.backend, "probe", None)
+        if probe is None:
+            return True, None
+        try:
+            elapsed = probe(self.budget_s)
+        except Exception as e:  # timeout or unavailable: still too slow
+            return False, f"still too slow ({type(e).__name__})"
+        if elapsed > self.budget_s:
+            return False, f"probe answered in {elapsed:.1f} s, over the {self.budget_s:g} s budget"
+        self._too_slow, self._slow_in_row = False, 0
+        self.log.info("llm_probe_ok", elapsed_s=round(elapsed, 2))
+        return True, None
 
     def set_status(self, status: str, reason: str | None = None) -> None:
         if status == self.status:
