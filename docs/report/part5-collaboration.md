@@ -7,8 +7,8 @@ frozen early (`docs/team-plan/00`, section 3) and turned into code contracts: py
 `brain/src/common/models.py`, from which the JSON Schemas of `brain/contracts/schemas/` are generated;
 a test fails if a schema is out of date. Every module follows the same pattern (a pure service tested
 without a broker, a thin MQTT entry point, settings in `config/`), so modules built in parallel could
-be merged without integration surprises. One branch per task, merged through pull requests (#1 input,
-#2 mock Twin, #3 math library, #11 LLM, #12 documentation, #13 test fix); problems found in review
+be merged without integration surprises. One branch per task, merged through pull requests
+(#1 input, #2 mock Twin, #3 math library, #11 LLM, #12 documentation, #13 test fix); problems found in review
 were filed as issues with evidence and a proposed fix (#4–#10).
 
 *[To complete by the team: meeting rhythm, communication channels, and coordination with the Twin and

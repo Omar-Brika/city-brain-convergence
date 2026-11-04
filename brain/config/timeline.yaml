@@ -21,7 +21,7 @@ subscribe:
   external_in: [call, actuator, unit, verdict, quarantine, twin_status, guardian_status]
   external_out: [event, error, alert, cmd, status]
   control: [run]
-  internal: [meta, reading, incident, proposal, decision, llm_status, layer_status]
+  internal: [meta, reading, incident, proposal, decision, outcome, llm_status, layer_status]
 
 buffer:
   recent_rows: 2000         # rows kept in memory for /api/recent, the chain view and SSE catch-up
@@ -48,6 +48,21 @@ display:
                 layer_degraded, device_quarantined]
   ok_events: [command_acknowledged, effect_confirmed, safe_mode_off, layer_online, llm_online,
               device_released]
+
+map:
+  # The live city map (press M on the screen to switch between map and timeline focus).
+  # layout: zone -> [column, row] on a grid; zones not listed are placed in the free cells, so any
+  # Twin's city is drawn without editing this. The demo city (mocks/city.yaml): the sea is west.
+  layout:
+    zone-01: [0, 0]       # Port
+    zone-02: [0, 1]       # Docks
+    zone-03: [1, 1]       # Centre
+    zone-04: [2, 0]       # Hospital zone
+    zone-06: [2, 1]       # Residential
+    zone-05: [1, 2]       # Industrial (substation)
+  sea: west                # west | north | east | south | null (no coast drawn)
+  recent_s: 12             # commands, acks and refusals stay drawn this long
+  call_s: 30               # an emergency call keeps its phone mark this long
 
 logging:
   file: logs/timeline.jsonl   # the module's own diagnostics (not the run logs)

@@ -97,8 +97,10 @@ controlled zone: a valve must make the water fall within 30 s, else the command 
 
 **Visibility.** The graph module links every message by `correlation_id` (reading → verdict →
 incident → proposals → decision → command → acknowledgement) and serves it over HTTP, also as context
-for the LLM. The timeline is a web page (offline, one file) showing the three layers live, the city
-map, open incidents and the last decision with its scores; each scenario run gets one log file.
+for the LLM. The timeline is a web page (offline, one file) showing the three layers live: a city
+map drawn from `twin/meta` (water, smoke, traffic, device states, Guardian verdicts, units driving,
+command beams, safety refusals), open incidents and the last decision with its scores; each
+scenario run gets one log file.
 
 ## 2.3 Tech stack and why
 

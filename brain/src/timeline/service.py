@@ -107,6 +107,11 @@ class TimelineService:
         self._shown_verdict: dict[str, set[str]] = {}        # incident -> sensors whose verdict was shown
         self._cmd_cid: dict[str, str] = {}                   # Brain command id -> chain correlation id
         self._cmd_text: dict[str, str] = {}
+        # city map: what the devices are doing, and what just happened (drawn for map.recent_s)
+        self.act_state: dict[str, str] = {}                  # actuator -> last state the Twin reported
+        self.outcomes: dict[str, dict[str, Any]] = {}        # target -> last outcome (sent/refused/...)
+        self.commands: deque[dict[str, Any]] = deque(maxlen=60)   # recent Brain commands and their acks
+        self.calls: deque[dict[str, Any]] = deque(maxlen=60)      # recent emergency calls
         self.counters = {"messages": 0, "errors": 0, "sent": 0, "acked": 0, "refused": 0, "failed": 0,
                          "retried": 0, "alerts": 0, "bad_signatures": 0}
         self._rate: deque[float] = deque()
@@ -313,6 +318,8 @@ class TimelineService:
             text = f"command {cid} -> {b.get('target_id', v.get('target_id'))}: {b.get('action')}{ptxt}"
             if cid:
                 self._cmd_text[cid] = f"{b.get('action')} {b.get('target_id')}"
+            self.commands.append({"id": cid, "target_id": b.get("target_id", v.get("target_id")),
+                                  "action": b.get("action"), "at": now, "result": None})
             return self._emit([R("BRAIN", "command", text, cid=self._cmd_cid.get(cid, cid),
                                  extra={"command_id": cid})])
         if kind == "out.status":
@@ -340,9 +347,15 @@ class TimelineService:
                                  cid=b.get("correlation_id"), incident_id=b.get("incident_id"))])
         if kind == "internal.decision":
             return self._emit([self._decision(b, R)])
+        if kind == "internal.outcome":          # map only: brain/event already has the rows
+            if b.get("target_id"):
+                self.outcomes[b["target_id"]] = {k: b.get(k) for k in ("status", "action", "rule", "incident_id")}
+                self.outcomes[b["target_id"]]["at"] = now
+            return []
 
         if kind == "in.call":
             zone = b.get("zone_id", v.get("zone_id"))
+            self.calls.append({"zone_id": zone, "category": b.get("category"), "at": now})
             text = f"emergency call ({b.get('category', '?')}) in {self._zone(zone)}"
             if b.get("text"):
                 text += f': "{str(b["text"])[:140]}"'
@@ -417,7 +430,8 @@ class TimelineService:
         self.zones = [{"zone_id": z["zone_id"], "name": z.get("name") or z["zone_id"],
                        "adjacent": list(z.get("adjacent") or [])} for z in b.get("zones", [])]
         self.sensors = {s["sensor_id"]: s for s in b.get("sensors", [])}
-        self.devices = {a["actuator_id"]: {"zone_id": a.get("zone_id"), "type": a.get("type"), "kind": "actuator"}
+        self.devices = {a["actuator_id"]: {"zone_id": a.get("zone_id"), "type": a.get("type"), "kind": "actuator",
+                                           "controls": list(a.get("controls") or [])}
                         for a in b.get("actuators", [])}
         for u in b.get("units", []):
             self.devices[u["unit_id"]] = {"zone_id": u.get("home_zone"), "type": u.get("type"), "kind": "unit"}
@@ -510,11 +524,17 @@ class TimelineService:
         if is_unit and (b.get("zone_id") or b.get("status")):
             prev = self.unit_zone.get(dev, (None, None))
             self.unit_zone[dev] = (b.get("zone_id") or prev[0], b.get("status") or prev[1])
+        if not is_unit and b.get("state"):
+            self.act_state[dev] = str(b["state"])
         if retained:
             return []
         result = b.get("result")
         if result:
             cmd = b.get("correlation_id")
+            for c in reversed(self.commands):
+                if c["id"] == cmd:
+                    c["result"] = result
+                    break
             what = self._cmd_text.get(cmd, "")
             detail = b.get("state") or b.get("status") or ""
             text = f"ack {dev}: {result}" + (f" for {cmd}" if cmd else "") + (f" ({what})" if what else "")
@@ -610,6 +630,35 @@ class TimelineService:
                 "decision": self.decision,
                 "zones": zones,
                 "quarantined": dict(self.quarantined),
-                "units": {u: {"zone_id": z, "status": s, "type": (self.devices.get(u) or {}).get("type")}
+                "units": {u: {"zone_id": z, "status": s, "type": (self.devices.get(u) or {}).get("type"),
+                              "home_zone": (self.devices.get(u) or {}).get("zone_id")}
                           for u, (z, s) in self.unit_zone.items()},
+                "map": self._map_state(now),
             }
+
+    def _map_state(self, now: float) -> dict[str, Any]:
+        """What the city map draws beyond the zones: devices with their state, sensors with Guardian's
+        verdict, and what happened in the last map.recent_s seconds (commands, refusals, calls)."""
+        m = self.cfg.get("map", {})
+        recent = float(m.get("recent_s", 12))
+        actuators = {}
+        for d, info in self.devices.items():
+            if info.get("kind") != "actuator":
+                continue
+            out = self.outcomes.get(d)
+            actuators[d] = {"zone_id": info.get("zone_id"), "type": info.get("type"),
+                            "controls": info.get("controls", []), "state": self.act_state.get(d),
+                            "outcome": ({**out, "age_s": round(now - out["at"], 1)}
+                                        if out and now - out["at"] <= recent else None)}
+        return {
+            "layout": m.get("layout") or {},
+            "sea": m.get("sea"),
+            "call_s": float(m.get("call_s", 30)),
+            "actuators": actuators,
+            "sensors": {sid: {"zone_id": s.get("zone_id"), "type": s.get("type"), "alert": s.get("alert"),
+                              "verdict": self._verdicts.get(sid)} for sid, s in self.sensors.items()},
+            "commands": [{**{k: c[k] for k in ("id", "target_id", "action", "result")},
+                          "age_s": round(now - c["at"], 1)} for c in self.commands if now - c["at"] <= recent],
+            "calls": [{"zone_id": c["zone_id"], "category": c["category"], "age_s": round(now - c["at"], 1)}
+                      for c in self.calls if now - c["at"] <= float(m.get("call_s", 30))],
+        }

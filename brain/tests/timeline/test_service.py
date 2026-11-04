@@ -214,3 +214,60 @@ def test_bad_payloads_are_ignored(h):
 def test_plain_json_on_external_topic_is_marked_unsigned(h):
     body = {"id": "x", "timestamp": h.clock.iso(), "source": "brain", "event": "e", "summary": "s"}
     assert one(h.s.handle("brain/event", json.dumps(body)))["signed"] is False
+
+
+# --- city map ---------------------------------------------------------------------------
+
+
+def test_map_has_devices_sensors_layout_and_home_zones(h):
+    m = h.s.snapshot()["map"]
+    assert m["actuators"]["valve-01"] == {"zone_id": "zone-01", "type": "valve", "controls": ["zone-01"],
+                                          "state": None, "outcome": None}
+    assert m["sensors"]["water-01"] == {"zone_id": "zone-01", "type": "water_level", "alert": 1.3, "verdict": None}
+    assert m["layout"]["zone-01"] == [0, 0] and m["sea"] == "west"
+    assert h.s.snapshot()["units"]["unit-fire-01"]["home_zone"] == "zone-02"
+
+
+def test_map_commands_follow_their_ack_then_expire(h):
+    h.brain("brain/cmd/valve-01", {"id": "brain-000042", "correlation_id": "twin-1", "target_id": "valve-01",
+                                   "action": "open"})
+    assert h.s.snapshot()["map"]["commands"] == [{"id": "brain-000042", "target_id": "valve-01", "action": "open",
+                                                  "result": None, "age_s": 0.0}]
+    h.clock.t += 1
+    h.twin("twin/actuator/valve-01", {"actuator_id": "valve-01", "correlation_id": "brain-000042",
+                                      "result": "done", "state": "open_100"})
+    m = h.s.snapshot()["map"]
+    assert m["commands"][0]["result"] == "done" and m["actuators"]["valve-01"]["state"] == "open_100"
+    h.clock.t += h.s.cfg["map"]["recent_s"] + 1
+    m = h.s.snapshot()["map"]
+    assert m["commands"] == [] and m["actuators"]["valve-01"]["state"] == "open_100"   # state stays
+
+
+def test_map_state_from_retained_actuator_message(h):
+    assert h.twin("twin/actuator/valve-01", {"actuator_id": "valve-01", "state": "closed"}, retained=True) == []
+    assert h.s.snapshot()["map"]["actuators"]["valve-01"]["state"] == "closed"
+
+
+def test_map_shows_a_refusal_with_its_rule(h):
+    assert h.internal("brain/internal/outcome", {"correlation_id": "twin-1", "incident_id": "inc-1",
+                                                 "decision_id": "d-1", "target_id": "valve-01", "action": "open",
+                                                 "status": "refused", "rule": "S6"}) == []
+    out = h.s.snapshot()["map"]["actuators"]["valve-01"]["outcome"]
+    assert out["status"] == "refused" and out["rule"] == "S6" and out["age_s"] == 0.0
+
+
+def test_map_calls_and_verdicts(h):
+    h.twin("city/zone-01/call", {"call_id": "call-1", "zone_id": "zone-01", "category": "flood"})
+    h.guardian("guardian/verdict/water-01", {"sensor_id": "water-01", "verdict": "rejected", "reason": "jump"})
+    m = h.s.snapshot()["map"]
+    assert m["calls"] == [{"zone_id": "zone-01", "category": "flood", "age_s": 0.0}]
+    assert m["sensors"]["water-01"]["verdict"] == "rejected"
+    h.clock.t += m["call_s"] + 1
+    assert h.s.snapshot()["map"]["calls"] == []
+
+
+def test_map_without_config_still_draws_any_city(make, timeline_cfg):
+    """No map section (another Twin's city): no layout, the page places the zones itself."""
+    h2 = make(cfg={k: v for k, v in timeline_cfg.items() if k != "map"})
+    m = h2.s.snapshot()["map"]
+    assert m["layout"] == {} and m["sea"] is None and set(m["actuators"]) == {"valve-01"}

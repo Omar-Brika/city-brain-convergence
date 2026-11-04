@@ -25,7 +25,7 @@ const HEX = THEME.colors;
 // numbers shown on the slides (measured, see docs/report/part2-city-brain.md)
 const N = {
   scenarios: process.env.N_SCENARIOS || "14 / 14",
-  tests: process.env.N_TESTS || "585",
+  tests: process.env.N_TESTS || "601",
   latency: process.env.N_LATENCY || "0.07 s",
   llm: process.env.N_LLM || "100 %",
   injections: process.env.N_INJ || "24 / 24",
@@ -174,7 +174,15 @@ async function icon(Comp, color, size = 256) {
   });
   s.addNotes("Every claim is measured. All Test Book scenarios pass end to end on the live system, each with its log file. From a confirmed alert to signed commands takes under a tenth of a second. The local LLM is right on every Test Book case and runs offline. And every module has its tests.");
 
-  // 6 ---------------------------------------------------------------- close
+  // 6 ---------------------------------------------------------------- the live screen
+  s = pres.addSlide({ masterName: "CONTENT", sectionTitle: "Pitch" });
+  s.addText("Watch the city think", { placeholder: "title" });
+  // live-map.png: the timeline during scenario B5 (fire and accident compete for one ambulance)
+  s.addImage({ path: require("path").join(process.env.PITCH_DIR || __dirname, "live-map.png"),
+    x: 1.5, y: 1.18, w: 7.0, h: 3.94, objectName: "live-map" });
+  s.addNotes("This is our live screen during a scenario: a fire and an accident at once. The map shows the city as the Brain believes it: smoke, traffic, every command as a beam from the Brain, units driving to the scene, and on the right every message of the three layers, signed and linked from cause to effect.");
+
+  // 7 ---------------------------------------------------------------- close
   s = pres.addSlide({ masterName: "TITLE", sectionTitle: "Pitch" });
   s.addText("Connect us to any partner", { placeholder: "title" });
   s.addText("Topics, keys and field names are configuration; the city is learned from the Twin", { placeholder: "body" });

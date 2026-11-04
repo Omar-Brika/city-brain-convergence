@@ -75,7 +75,8 @@ class Recorder:
             return list(self.messages)
 
 
-def run_one(scenario_id: str, client, keys: dict[str, bytes], topics: dict[str, Any]) -> bool:
+def run_one(scenario_id: str, client, keys: dict[str, bytes], topics: dict[str, Any]) -> bool | None:
+    """True = PASS, False = FAIL, None = skipped (needs the mock LLM)."""
     sc = lib.load_scenario(scenario_id)
     city = lib.city_index()
     problems = lib.validate(sc, city)
@@ -103,7 +104,7 @@ def run_one(scenario_id: str, client, keys: dict[str, bytes], topics: dict[str, 
         print(f"== {scenario_id}: {sc['name']}\n  [SKIP] needs the mock LLM (modes {sorted(llm_modes)}), the "
               f"running LLM is {model}: start the Brain with `python run.py --mocks --mock-llm`, or stop Ollama "
               f"by hand for the live drill")
-        return True
+        return None
 
     started = datetime.now(timezone.utc)
     run_id = f"run-{scenario_id}-{started:%Y%m%d-%H%M%S}"
@@ -221,7 +222,7 @@ def main(argv: list[str] | None = None) -> int:
 
     keys, topics = _keys(), config.load("topics")
     client = connect()
-    results: dict[str, bool] = {}
+    results: dict[str, bool | None] = {}
     try:
         for i in ids:
             results[i] = run_one(i, client, keys, topics)
@@ -231,8 +232,8 @@ def main(argv: list[str] | None = None) -> int:
     if len(results) > 1:
         print("\n== Summary")
         for i, ok in results.items():
-            print(f"  {i:5} {'PASS' if ok else 'FAIL'}")
-    return 0 if all(results.values()) else 1
+            print(f"  {i:5} {'SKIP' if ok is None else 'PASS' if ok else 'FAIL'}")
+    return 0 if all(ok is not False for ok in results.values()) else 1
 
 
 if __name__ == "__main__":
