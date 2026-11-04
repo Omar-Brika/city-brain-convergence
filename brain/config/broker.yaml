@@ -1,5 +1,5 @@
 # Shared MQTT broker (spec TR-1, TR-3). Every Brain module reads this file.
-host: localhost
+host: 127.0.0.1         # not localhost: it resolves to IPv6 first, and a Docker IPv6 port forward can stall the TLS handshake
 port: 8883              # TLS only (SEC-1)
 keepalive_s: 30
 reconnect_min_s: 1      # auto-reconnect back-off (TR-8)

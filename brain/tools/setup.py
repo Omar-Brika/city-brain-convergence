@@ -64,7 +64,7 @@ def write(path: Path, data: bytes | str, force: bool, private: bool = False) -> 
             os.chmod(path, 0o600)
         except OSError:
             pass                                # Windows: ACLs, not modes
-    print("wrote", path.relative_to(BRAIN))
+    print("wrote", path.relative_to(BRAIN) if path.is_relative_to(BRAIN) else path)
     return True
 
 
@@ -96,6 +96,8 @@ def make_ca(force: bool) -> tuple[x509.Certificate, ec.EllipticCurvePrivateKey]:
             .serial_number(x509.random_serial_number()).not_valid_before(now - dt.timedelta(days=1))
             .not_valid_after(now + dt.timedelta(days=365))
             .add_extension(x509.BasicConstraints(ca=True, path_length=0), critical=True)
+            # key identifiers (RFC 5280): strict verifiers (Python 3.13+ default) refuse certificates without them
+            .add_extension(x509.SubjectKeyIdentifier.from_public_key(key.public_key()), critical=False)
             .add_extension(x509.KeyUsage(digital_signature=True, key_cert_sign=True, crl_sign=True,
                                          content_commitment=False, key_encipherment=False, data_encipherment=False,
                                          key_agreement=False, encipher_only=False, decipher_only=False), critical=True)
@@ -124,6 +126,11 @@ def make_server_cert(ca: x509.Certificate, ca_key, extra: list[str], force: bool
             .not_valid_before(now - dt.timedelta(days=1)).not_valid_after(now + dt.timedelta(days=180))
             .add_extension(x509.SubjectAlternativeName(san), critical=False)
             .add_extension(x509.ExtendedKeyUsage([ExtendedKeyUsageOID.SERVER_AUTH]), critical=False)
+            .add_extension(x509.KeyUsage(digital_signature=True, key_encipherment=False, key_cert_sign=False,
+                                         crl_sign=False, content_commitment=False, data_encipherment=False,
+                                         key_agreement=True, encipher_only=False, decipher_only=False), critical=True)
+            .add_extension(x509.SubjectKeyIdentifier.from_public_key(key.public_key()), critical=False)
+            .add_extension(x509.AuthorityKeyIdentifier.from_issuer_public_key(ca_key.public_key()), critical=False)
             .sign(ca_key, hashes.SHA256()))
     write(crt_path, cert.public_bytes(serialization.Encoding.PEM), True)
     write(SECRETS / "broker" / "server.key", pem_key(key), True, private=True)
@@ -135,10 +142,11 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--host", action="append", default=[], help="extra broker name or IP (repeatable)")
     ap.add_argument("--force", action="store_true", help="recreate everything")
+    ap.add_argument("--renew-certs", action="store_true", help="recreate the CA and broker certificate only (keys and passwords kept)")
     args = ap.parse_args()
 
-    ca, ca_key = make_ca(args.force)
-    make_server_cert(ca, ca_key, args.host, args.force)
+    ca, ca_key = make_ca(args.force or args.renew_certs)
+    make_server_cert(ca, ca_key, args.host, args.force or args.renew_certs)
     for name in HMAC_KEYS:
         write(SECRETS / "keys" / name, secrets.token_hex(32) + "\n", args.force, private=True)
     lines, changed = [], False

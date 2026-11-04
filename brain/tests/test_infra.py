@@ -61,3 +61,21 @@ def test_launcher_selection():
     assert mods["llm"] == cfg["mock_llm"] and "twin" in mods and "graph" not in mods
     only = run.select(Namespace(mock_llm=False, mocks=False, only="input,llm", without=None), cfg)
     assert only == {"input": "src.input", "llm": "src.llm"}
+
+
+def test_certificates_have_the_key_identifiers_strict_tls_needs(tmp_path, monkeypatch):
+    """Python 3.13+ (and other strict verifiers) refuse a chain without SKI/AKI (RFC 5280)."""
+    from cryptography import x509
+    sys.path.insert(0, str(BRAIN / "tools"))
+    setup = importlib.import_module("setup")
+    monkeypatch.setattr(setup, "SECRETS", tmp_path)
+    ca, ca_key = setup.make_ca(force=True)
+    setup.make_server_cert(ca, ca_key, ["10.0.0.7"], force=True)
+    server = x509.load_pem_x509_certificate((tmp_path / "broker" / "server.crt").read_bytes())
+    ca_ski = ca.extensions.get_extension_for_class(x509.SubjectKeyIdentifier).value.digest
+    aki = server.extensions.get_extension_for_class(x509.AuthorityKeyIdentifier).value.key_identifier
+    assert aki == ca_ski
+    server.extensions.get_extension_for_class(x509.SubjectKeyIdentifier)
+    san = server.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
+    assert "127.0.0.1" in [str(i) for i in san.get_values_for_type(x509.IPAddress)]
+    assert "10.0.0.7" in [str(i) for i in san.get_values_for_type(x509.IPAddress)]
