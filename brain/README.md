@@ -4,29 +4,34 @@ How to run this layer alone.
 
 ## Setup
 
-Python 3.11+. From the `brain/` folder:
+Python 3.11+, Docker (for the broker). From the `brain/` folder:
 
 ```bash
 python -m venv .venv
-.venv/bin/pip install -r requirements.txt
+.venv/Scripts/pip install -r requirements.txt     # Linux/macOS: .venv/bin/pip
+python tools/setup.py                            # once: CA + broker certificate, HMAC keys, broker accounts
+docker compose -f ../docker-compose.yml up -d broker   # Mosquitto, TLS only, topic ACL
+python run.py --mocks                            # every Brain module + mock Twin + mock Guardian
 ```
 
-Keys and certificates go in `brain/secrets/` (git-ignored, never committed). Paths are set in `config/security.yaml`:
+Then open the live timeline on http://127.0.0.1:8090 and play a scenario from the repository root:
+`python scenarios/run.py B2`. Without a GPU or Ollama: `python run.py --mocks --mock-llm`.
+Everything in one command instead (broker + Brain + mocks in containers): `docker compose up`.
+
+`tools/setup.py` writes into `brain/secrets/` (git-ignored, never committed); paths are in
+`config/security.yaml`:
 
 ```
-secrets/ca.crt                     # triplet CA, used to verify the broker
-secrets/broker-password.txt        # password of the `brain` broker account
-secrets/keys/twin-brain.key        # HMAC key Twin-Brain (UTF-8 text, >= 32 random bytes)
+secrets/ca.crt                     # triplet CA (give it to the Twin and Guardian teams)
+secrets/broker/                    # broker certificate, key and password file (mounted by docker compose)
+secrets/broker-password.txt        # password of the `brain` account (twin-, guardian-, tester-password.txt: the others)
+secrets/keys/twin-brain.key        # HMAC key Twin-Brain (32 random bytes, hex)
 secrets/keys/guardian-brain.key    # HMAC key Guardian-Brain
 secrets/keys/guardian-ed25519.pub  # only if guardian_signature.mode = ed25519
 ```
 
-To create a key for local tests (the real keys come from the team lead):
-
-```bash
-mkdir -p secrets/keys
-python -c "import secrets; print(secrets.token_hex(32))" > secrets/keys/twin-brain.key
-```
+`python tools/setup.py --host 192.168.1.20` adds a name or address to the broker certificate (other
+laptops connecting over the demo network); `--renew-certs` recreates the certificates only.
 
 ## Modules
 
