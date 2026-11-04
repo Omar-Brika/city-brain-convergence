@@ -35,6 +35,18 @@ this protocol, so replacing them by the real layers changes only the broker conf
 | Liveness | `<layer>/status` `online`, Last Will `offline`, retained |
 | Formats | every topic and an example body: `brain/INTERFACE.md`; JSON Schemas: `brain/contracts/schemas/` |
 
+## Shared decisions
+
+| Decision | Why |
+|---|---|
+| One MQTT broker over TLS, one account per layer, topic ACL | Pub/sub fits three layers plus a timeline; a layer can only speak for itself |
+| HMAC-SHA256 envelope, one key per pair of layers | End-to-end integrity through the broker; no layer can forge another's messages |
+| `correlation_id` copied along every chain | The timeline and the graph can show cause and effect (R3) |
+| Retained city description, verdicts, quarantines and statuses | A restarted layer gets the whole current state at once |
+| Status with Last Will for every layer | Partner failure is detected in seconds, and each layer degrades safely (Brain: safe mode without Guardian, no commands without Twin) |
+| Error codes on refused input (`E_AUTH`, `E_STALE`, `E_REPLAY`, `E_FORMAT`, `E_UNKNOWN_ID`, `E_RANGE`) | A partner sees why a message was refused |
+| Everything partner-specific in configuration | Phase 2 reshuffles triplets: connecting to new partners must not need code changes |
+
 ## One scenario end to end: B2, real flood at the port
 
 `python scenarios/run.py B2` — trace from `logs/B2-*.log` (times from the start of the run):

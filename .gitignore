@@ -234,3 +234,6 @@ brain/logs/*
 .claude/
 # Scenario run logs are evidence for the jury (R2): keep them in the repo
 !/logs/*.log
+
+# Intermediate file of docs/report/build_report.py
+docs/report/_report.html
