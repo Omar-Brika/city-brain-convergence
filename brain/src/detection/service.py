@@ -50,12 +50,11 @@ from ..common import config
 from ..common.envelope import body_text, seal_multi
 from ..common.ids import IdGenerator
 from ..common.log import EventLogger, utc_now_iso
-from ..common.models import Incident, IncidentEvidence, TimelineEvent
+from ..common.models import SEVERITY_RANK, Incident, IncidentEvidence, TimelineEvent
 from .sensors import SensorState
 
 Publisher = Callable[[str, str, int, bool], None]   # topic, payload, qos, retain
 
-SEVERITY_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}
 
 
 @dataclass(slots=True)
@@ -231,6 +230,8 @@ class DetectionService:
             self.check()
 
     def on_call(self, msg: dict[str, Any]) -> None:
+        if any(c.call_id == msg["call_id"] for c in self.calls):
+            return                                   # redelivered (QoS 1): one citizen call counts once
         self.calls.append(Call(self.clock(), msg["call_id"], msg["zone_id"], msg.get("category", "other"),
                                msg.get("correlation_id") or msg.get("id", "")))
         self.check()
@@ -455,10 +456,12 @@ class DetectionService:
     def _suppress(self, found: dict[tuple[str, str], Assessment]) -> None:
         open_th = float(self.cfg["lifecycle"]["open_threshold"])
 
+        # confidences BEFORE any suppression: the result must not depend on the order of the loop
+        before = {key: a.confidence for key, a in found.items()}
+
         def explains(zone: str, other: str) -> bool:
             tr = self.tracks.get((zone, other))
-            o = found.get((zone, other))
-            return bool(tr and tr.incident) or bool(o and o.confidence >= open_th)
+            return bool(tr and tr.incident) or before.get((zone, other), 0.0) >= open_th
 
         for (zone, itype), a in found.items():
             spec = self.cfg["incidents"][itype]

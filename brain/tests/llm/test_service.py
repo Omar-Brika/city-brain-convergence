@@ -238,3 +238,18 @@ def test_one_timeout_alone_does_not_switch_off_the_llm(run_case, bus, clock):
     _, outcome = run_case("B2", FakeBackend(answer(("valve-port-up", "open")), clock, takes_s=30))
     assert outcome == "timeout"
     assert all(s["status"] != "offline" for s in bus.on("brain/internal/llm-status"))
+
+
+def test_timeouts_after_queue_wait_do_not_switch_the_llm_off(make_service, bus, clock):
+    """Several incidents at once: the last ones get what is left of the budget. Their timeouts do not
+    mean the model is slow, so the circuit breaker must not open."""
+    backend = FakeBackend(answer(("valve-port-up", "open")), clock, takes_s=30)
+    service = make_service(backend)
+    service.tick()
+    for i in range(3):
+        inc = copy.deepcopy(CASES["B2"]["incident"]) | {"incident_id": f"inc-q-{i}"}
+        feed(service, DATA["city"], CASES["B2"] | {"incident": inc})
+        job = service.next_job(0)
+        clock.t += 6                                            # waited 6 of the 8 s in the queue
+        assert service.process(job) == "timeout"
+    assert all(s["status"] != "offline" for s in bus.on("brain/internal/llm-status"))

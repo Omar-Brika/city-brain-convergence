@@ -51,6 +51,10 @@ class GraphService:
     ):
         self.cfg = graph_cfg or config.load("graph")
         self.topics = topics_cfg or config.load("topics")
+        # bad direction per sensor type, shared with detection (speed and flow alert when LOW)
+        sensor_cfg = config.load("detection").get("sensor", {})
+        self.directions: dict[str, str] = dict(sensor_cfg.get("direction") or {})
+        self.default_direction: str = sensor_cfg.get("default_direction", "up")
         self.clock = clock
         log_cfg = self.cfg.get("logging", {})
         self.log = logger or EventLogger("brain-graph", log_cfg.get("file"), log_cfg.get("level", "INFO"))
@@ -166,9 +170,15 @@ class GraphService:
         if sensor is not None:
             sensor.attrs["latest"] = latest
         self._pend(self.pending_readings, corr, m)
-        alert = sensor.attrs.get("alert") if sensor else None
-        if self.cfg.get("store_alert_readings", True) and alert is not None and m["value"] >= alert:
+        if self.cfg.get("store_alert_readings", True) and sensor is not None and self._at_alert(sensor, m["value"]):
             self._store_reading(corr, "alert level")
+
+    def _at_alert(self, sensor: Any, value: float) -> bool:
+        alert = sensor.attrs.get("alert")
+        if alert is None:
+            return False
+        direction = self.directions.get(sensor.attrs.get("type"), self.default_direction)
+        return value <= alert if direction == "down" else value >= alert
 
     def on_trust(self, m: dict[str, Any]) -> None:
         sensor = self.g.get("sensor", m["sensor_id"])

@@ -141,7 +141,7 @@ def test_update_without_trigger_does_not_redecide(svc, bus):
     send(svc, INC, incident("inc-1", "flood", "zone-02"))
     send(svc, INC, incident("inc-1", "flood", "zone-02", status="updated", confidence=0.9))
     assert len(bus.decisions()) == 1
-    assert len(bus.proposals("rules", "inc-1")) == 2         # a rule proposal on every update
+    assert len(bus.proposals("rules", "inc-1")) == 1         # same rule actions: not published again
 
 
 def test_severity_increase_redecides_with_new_actions_only(svc, bus):
@@ -359,6 +359,7 @@ def test_failed_action_redecides_without_that_target(svc, bus):
     send(svc, INC, incident("inc-1", "accident", "zone-03"))
     [d1] = bus.decisions()
     send(svc, OUT, outcome("inc-1", d1["id"], "unit-ambulance-02", "dispatch", "failed"))
+    svc.tick()                                               # outcomes are coalesced per tick
     d2 = bus.decisions()[-1]
     assert actions_of(d2) == [("unit-ambulance-01", "dispatch")]   # no signal sent again
     [e] = bus.events("decision_changed")
@@ -371,6 +372,7 @@ def test_refused_action_without_alternative_is_reported(svc, bus):
     send(svc, INC, incident("inc-1", "flood", "zone-01"))
     [d1] = bus.decisions()
     send(svc, OUT, outcome("inc-1", d1["id"], "valve-01", "open", "refused"))
+    svc.tick()
     assert len(bus.decisions()) == 1
     assert "no new action" in bus.events("decision_skipped")[-1]["summary"]
 
@@ -390,3 +392,38 @@ def test_bad_messages_do_not_break_the_service(svc, bus):
     offline(svc)
     send(svc, INC, incident("inc-1", "traffic_jam", "zone-03"))
     assert len(bus.decisions()) == 1
+
+
+
+def test_several_refusals_of_one_decision_give_one_redecision(svc, bus):
+    """S7 (Twin offline) refuses every action of a decision: one re-decision, not one per action."""
+    offline(svc)                                             # rules decide at once
+    send(svc, INC, incident("inc-1", "flood", "zone-01", severity="high"))
+    d1 = bus.decisions()[0]
+    for target, action in actions_of(d1):
+        send(svc, OUT, outcome("inc-1", d1["id"], target, action, "refused"))
+    svc.tick()
+    track = svc.tracks["inc-1"]
+    assert track.redecisions == 1
+    assert len([e for e in bus.events() if e["event"] in ("decision_changed", "decision_skipped")]) == 1
+
+
+def test_reservation_of_a_dispatch_never_reported_out_is_released(svc, bus, clock):
+    offline(svc)                                             # rules decide at once
+    send(svc, INC, incident("inc-1", "accident", "zone-03"))
+    unit = next(t for t, a in actions_of(bus.decisions()[0]) if a == "dispatch")
+    send(svc, INC, incident("inc-1", "accident", "zone-03", status="closed"))
+    assert unit in svc.assigned                              # incident forgotten, unit still reserved
+    clock.t += float(svc.decide_cfg["reservation_ttl_s"]) + 1
+    svc.tick()
+    assert unit not in svc.assigned                          # no ack ever made it busy: released
+
+
+def test_refused_dispatch_of_a_forgotten_incident_frees_the_unit(svc, bus):
+    offline(svc)                                             # rules decide at once
+    send(svc, INC, incident("inc-1", "accident", "zone-03"))
+    d1 = bus.decisions()[0]
+    unit = next(t for t, a in actions_of(d1) if a == "dispatch")
+    send(svc, INC, incident("inc-1", "accident", "zone-03", status="closed"))
+    send(svc, OUT, outcome("inc-1", d1["id"], unit, "dispatch", "refused"))
+    assert unit not in svc.assigned

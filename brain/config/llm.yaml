@@ -20,6 +20,7 @@ budget:
   # Reachable but too slow (cold model, GPU throttled on battery): after this many timeouts in a row
   # llm-status goes offline so scoring decides at once; back online when a probe answers in time.
   offline_after_timeouts: 2
+  fair_share: 0.6               # a timeout counts as "too slow" only if the model had >= 60 % of the budget
 
 context:
   graph_url: http://127.0.0.1:8080   # graph context API (02-graph 5.2); 127.0.0.1: on Windows localhost adds ~2 s (IPv6 first), more than context_s

@@ -273,3 +273,14 @@ def test_http_server_answers_every_endpoint(graph, clock):
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_alert_level_respects_the_sensor_direction():
+    """traffic_speed alerts when LOW: a normal 50 km/h must not be stored as an alert reading."""
+    from src.graph.service import GraphService
+    svc = GraphService()
+    class S:
+        attrs = {"type": "traffic_speed", "alert": 10}
+    assert not svc._at_alert(S, 50) and svc._at_alert(S, 5)
+    S.attrs = {"type": "water_level", "alert": 1.3}
+    assert svc._at_alert(S, 1.5) and not svc._at_alert(S, 0.4)

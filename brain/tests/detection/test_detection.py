@@ -387,3 +387,14 @@ def test_first_twin_online_is_not_a_restart(make_city, bus):
         city.step(2)
     _twin(city, "online")                       # first status seen: nothing to reset
     assert not bus.incidents(status="closed")
+
+
+def test_a_redelivered_call_counts_once(make_city, bus):
+    city = make_city()
+    city.trust_all()
+    city.step(WARMUP)
+    msg = {"id": "in-c1", "timestamp": "2026-11-14T10:00:00.000Z", "correlation_id": "twin-c1",
+           "call_id": "call-dup", "zone_id": "zone-05", "category": "fire", "text": "smoke"}
+    for _ in range(3):                                   # QoS 1 redelivery of the same call
+        city.s.handle("brain/internal/call", json.dumps(msg))
+    assert len([c for c in city.s.calls if c.call_id == "call-dup"]) == 1

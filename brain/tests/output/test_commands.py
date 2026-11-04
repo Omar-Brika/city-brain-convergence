@@ -117,7 +117,11 @@ def test_no_ack_retries_once_with_same_id_then_fails_with_alert(h):
     assert len(h.bus.raw("brain/cmd/")) == 1
     h.advance(1.0)                                          # 4 s: retry
     cmds = h.bus.raw("brain/cmd/")
-    assert len(cmds) == 2 and cmds[1][1] == first[1]        # same id, same signed bytes
+    assert len(cmds) == 2
+    b1, b2 = (json.loads(json.loads(c[1])["body"]) for c in (first, cmds[1]))
+    # same id and command (the Twin executes an id once), fresh timestamp (not refused as stale)
+    assert b2["id"] == b1["id"] and {k: b2[k] for k in ("target_id", "action", "parameters")} ==         {k: b1[k] for k in ("target_id", "action", "parameters")}
+    assert b2["timestamp"] > b1["timestamp"]
     assert len(h.bus.events("command_retried")) == 1
     assert h.bus.outcomes("failed") == []
     h.advance(4.0)                                          # second timeout: failed
@@ -262,8 +266,10 @@ def test_effect_check_can_be_disabled(make, output_cfg):
     assert h.bus.outcomes("failed") == []
 
 
-def test_command_id_start_auto_is_six_digits():
-    from src.output.service import command_id_start
-    n = command_id_start("auto", 1_800_000_000.0 + 86399.9)
-    assert 1 <= n < 1_000_000
-    assert command_id_start(7, 0) == 7
+def test_auto_command_ids_never_repeat_across_restarts():
+    from src.output.service import CommandIds
+    first = CommandIds("brain", "auto", 1_800_000_000.0)
+    used = {first.next() for _ in range(500)}                  # a burst before a crash
+    again = CommandIds("brain", "auto", 1_800_000_002.0)       # restarted 2 s later
+    assert not used & {again.next() for _ in range(500)}
+    assert CommandIds("brain", 7, 0).next() == "brain-000007"

@@ -34,6 +34,7 @@ from ..common.envelope import EnvelopeError, body_text, parse_envelope, seal_mul
 from ..common.ids import IdGenerator
 from ..common.log import EventLogger, utc_now_iso
 from ..common.models import (
+    SEVERITY_RANK,
     Decision,
     DecisionAlternative,
     Incident,
@@ -42,7 +43,7 @@ from ..common.models import (
     ProposalAction,
     TimelineEvent,
 )
-from ..rules.engine import SEVERITY_RANK, RuleEngine
+from ..rules.engine import RuleEngine
 from .city import CityView
 from .model import ProposalScore, ScoringModel
 
@@ -78,6 +79,7 @@ class Track:
 @dataclass(slots=True)
 class Assignment:
     incident_id: str
+    since: float = 0.0                          # when the dispatch was decided
     seen_busy: bool = False
 
 
@@ -115,6 +117,7 @@ class ScoringService:
         self.rule_ids = IdGenerator("rules")
         self.tracks: dict[str, Track] = {}
         self.assigned: dict[str, Assignment] = {}             # unit_id -> incident holding it
+        self._redecide: dict[str, list[str]] = {}            # incident_id -> why (failed / refused outcomes this tick)
         self.early_llm: dict[str, tuple[float, Proposal]] = {}  # LLM proposal before its incident
         self.llm_status: str | None = None
         self._lock = threading.RLock()          # paho thread (handle) and main loop (tick)
@@ -194,7 +197,7 @@ class ScoringService:
             return
 
         track.incident = inc
-        self._publish_rules(track)
+        self._publish_rules(track, only_if_changed=True)
         if track.state == "waiting":
             self._maybe_decide_now(track)
         elif track.state == "skipped" or self._redecide_trigger(track):
@@ -340,19 +343,30 @@ class ScoringService:
     def on_outcome(self, o: Outcome) -> None:
         if o.status not in ("failed", "refused"):
             return
+        held = self.assigned.get(o.target_id)
+        if held is not None and not held.seen_busy and held.incident_id in (o.incident_id, ""):
+            del self.assigned[o.target_id]          # the dispatch never happened: the unit is not out
         track = self.tracks.get(o.incident_id)
         if track is None or o.decision_id not in track.decisions:
             return
         track.failed.add(o.target_id)
-        if o.target_id in self.assigned and self.assigned[o.target_id].incident_id == track.id:
-            del self.assigned[o.target_id]
         why = f"{o.action} {o.target_id} {o.status}" + (f" ({o.rule or o.detail})" if (o.rule or o.detail) else "")
-        if track.redecisions >= int(self.decide_cfg["max_redecisions"]):
-            self._skip(track, f"{why}; re-decision limit reached")
-            return
-        track.redecisions += 1
-        self._publish_rules(track)
-        self._decide(track, why)
+        # coalesced: the outcomes of one decision (often several refusals at once) give ONE re-decision
+        self._redecide.setdefault(track.id, []).append(why)
+
+    def _run_redecisions(self) -> None:
+        pending, self._redecide = self._redecide, {}
+        for iid, whys in pending.items():
+            track = self.tracks.get(iid)
+            if track is None:
+                continue
+            why = "; ".join(whys)
+            if track.redecisions >= int(self.decide_cfg["max_redecisions"]):
+                self._skip(track, f"{why}; re-decision limit reached")
+                continue
+            track.redecisions += 1
+            self._publish_rules(track)
+            self._decide(track, why)
 
     def _serve_waiting_units(self, why: str) -> None:
         """Re-decide incidents that lacked a unit, highest priority first, if one is now free."""
@@ -362,8 +376,9 @@ class ScoringService:
             if track.redecisions >= int(self.decide_cfg["max_redecisions"]):
                 continue
             p = self._priority(track, now)
+            own = {uid for uid, a in self.assigned.items() if a.incident_id == track.id}
             if any(self._rival(track, uid, p, now) is None
-                   for utype in track.wants_types for uid in self._free_units(track, utype, set())):
+                   for utype in track.wants_types for uid in self._free_units(track, utype, own)):
                 track.redecisions += 1
                 self._publish_rules(track)
                 self._decide(track, why)
@@ -627,7 +642,7 @@ class ScoringService:
         for a in actions:
             track.issued.add((a.target_id, a.action))
             if self.city.is_unit(a.target_id) and a.action == self.dispatch["action"]:
-                self.assigned[a.target_id] = Assignment(inc.incident_id)
+                self.assigned[a.target_id] = Assignment(inc.incident_id, since=self.clock())
         got = {self.city.units[a.target_id].type for a in actions
                if self.city.is_unit(a.target_id) and a.action == self.dispatch["action"]}
         track.wants_types = best.missing - got
@@ -677,6 +692,13 @@ class ScoringService:
 
     def _tick(self) -> None:
         now = self.clock()
+        self._run_redecisions()
+        ttl = float(self.decide_cfg.get("reservation_ttl_s", 30))
+        for uid in [u for u, a in self.assigned.items() if not a.seen_busy and now - a.since > ttl]:
+            # dispatched but never reported out (no ack, Twin reset): do not hold the unit forever
+            del self.assigned[uid]
+            self.log.info("reservation_released", unit_id=uid, after_s=ttl)
+            self._serve_waiting_units(f"{uid} reservation expired")
         for track in [t for t in self.tracks.values() if t.state == "waiting" and now >= t.deadline]:
             self._decide(track, f"LLM budget of {self.budget_s:g} s used up")
         keep = float(self.decide_cfg["early_llm_keep_s"])

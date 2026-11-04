@@ -10,10 +10,9 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from ..common.models import Incident, ProposalAction
+from ..common.models import SEVERITY_RANK, Incident, ProposalAction
 from ..scoring.city import CityView
 
-SEVERITY_RANK = {"low": 0, "medium": 1, "high": 2, "critical": 3}
 
 # pick_unit(unit_type, template params, taken unit ids) -> (action or None, note or None)
 UnitPicker = Callable[[str, dict[str, Any], set[str]], tuple[ProposalAction | None, str | None]]

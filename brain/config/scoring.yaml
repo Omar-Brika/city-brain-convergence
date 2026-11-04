@@ -92,7 +92,8 @@ decide:
   redecide_on: {severity_increase: true, new_evidence_type: true}
   min_score: 0.0                 # best score <= this: no decision (decision_skipped)
   switch_margin: 0.0             # an LLM proposal must beat the current decision by more than this
-  max_redecisions: 5             # per incident, after failed / refused actions or freed units
+  max_redecisions: 5             # per incident, after failed / refused actions (coalesced per tick) or freed units
+  reservation_ttl_s: 30         # a dispatched unit never reported out (no ack, Twin reset) is released after this
   explanation_max_chars: 300
   early_llm_keep_s: 10           # an LLM proposal that arrives before its incident is kept this long
 

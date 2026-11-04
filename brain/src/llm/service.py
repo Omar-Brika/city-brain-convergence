@@ -27,7 +27,7 @@ from ..common import config
 from ..common.envelope import body_text, seal_multi
 from ..common.ids import IdGenerator
 from ..common.log import EventLogger, utc_now_iso
-from ..common.models import LlmStatus, Proposal, TimelineEvent
+from ..common.models import SEVERITY_RANK, LlmStatus, Proposal, TimelineEvent
 from . import prompt as prompts
 from . import validate
 from .backends import BackendTimeout, BackendUnavailable, LlmBackend
@@ -36,7 +36,6 @@ from .incident import Incident
 
 Publisher = Callable[[str, str, int, bool], None]   # topic, payload, qos, retain
 
-SEVERITY_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 
 
 @dataclass(slots=True)
@@ -133,7 +132,7 @@ class LlmService:
             self._versions += 1
             version = self._versions
             self._latest[inc.incident_id] = version
-        rank = SEVERITY_RANK.get(inc.severity or "", len(SEVERITY_RANK))
+        rank = -SEVERITY_RANK.get(inc.severity or "", -1)      # most severe first; unknown last
         self._jobs.put((rank, version, Job(inc, version, now, now + self.budget_s)))
 
     def next_job(self, timeout_s: float | None = None) -> Job:
@@ -181,7 +180,11 @@ class LlmService:
         try:
             answer = self.backend.generate(p, remaining)
         except BackendTimeout:
-            self._slow_in_row += 1
+            # slowness of the model only counts if it had a fair share of the budget: a job that
+            # waited in the queue behind other incidents and got 1 s says nothing about the model
+            fair = float(self.cfg["budget"].get("fair_share", 0.6)) * self.budget_s
+            if remaining >= fair:
+                self._slow_in_row += 1
             limit = int(self.cfg["budget"].get("offline_after_timeouts", 2))
             if limit and self._slow_in_row >= limit:
                 # reachable but too slow (cold model, GPU throttled on battery): say so, so the

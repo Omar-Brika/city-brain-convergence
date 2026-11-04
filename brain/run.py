@@ -39,8 +39,12 @@ class Module:
         self.proc: subprocess.Popen | None = None
         self.crashes: deque[float] = deque()
         self.gave_up = False
+        self.stopping = False
+        self._restart: threading.Timer | None = None
 
     def start(self) -> None:
+        if self.stopping:                          # a restart that fires after Ctrl+C does nothing
+            return
         env = dict(os.environ, PYTHONUNBUFFERED="1", PYTHONIOENCODING="utf-8")
         flags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
         self.proc = subprocess.Popen([sys.executable, "-m", self.target], cwd=HERE, env=env,
@@ -69,9 +73,14 @@ class Module:
         delay = backoff[min(len(self.crashes) - 1, len(backoff) - 1)]
         say(self, f"exited with code {self.proc.returncode}, restarting in {delay} s", error=True)
         self.proc = None
-        threading.Timer(delay, self.start).start()
+        self._restart = threading.Timer(delay, self.start)
+        self._restart.daemon = True
+        self._restart.start()
 
     def stop(self) -> None:
+        self.stopping = True
+        if self._restart is not None:
+            self._restart.cancel()
         if self.proc and self.proc.poll() is None:
             try:
                 self.proc.send_signal(signal.CTRL_BREAK_EVENT if os.name == "nt" else signal.SIGTERM)

@@ -9,7 +9,7 @@ For every action of a decision:
                          outcome sent + event command_sent
   ack `done`          -> outcome acknowledged + event command_acknowledged, effect check starts
   ack rejected/failed -> outcome failed (detail = reason) + event command_failed (+ alert command_rejected)
-  no ack in timeout_s -> resent once with the SAME id, then outcome failed (detail no_ack)
+  no ack in timeout_s -> resent once with the SAME id (fresh timestamp), then outcome failed (detail no_ack)
                          + event command_failed + alert actuator_not_responding
   no effect in window -> outcome failed (detail no_effect) + event command_failed + alert actuator_no_effect
 
@@ -55,11 +55,18 @@ def tolerant(model: type[BaseModel], msg: dict[str, Any]) -> tuple[BaseModel, li
 
 
 class CommandIds:
-    """brain-000042 style ids; the counter can start above 1 so a restart never reuses an id."""
+    """Command ids the Twin never sees twice (it answers a reused id with the old acknowledgement).
 
-    def __init__(self, prefix: str, start: int):
-        self._prefix = prefix
-        self._n = start - 1
+    id_start auto: brain-<session>-000001, session = start time in seconds, base 36. A restart
+    takes more than a second, so it always gets a new session: ids are unique across restarts,
+    days and midnight. An integer id_start gives brain-000042 style ids (tests, fixed numbering).
+    """
+
+    def __init__(self, prefix: str, start: Any, now: float):
+        if start == "auto":
+            self._prefix, self._n = f"{prefix}-{_base36(int(now))}", 0
+        else:
+            self._prefix, self._n = prefix, max(1, int(start)) - 1
         self._lock = threading.Lock()
 
     def next(self) -> str:
@@ -68,11 +75,13 @@ class CommandIds:
             return f"{self._prefix}-{self._n:06d}"
 
 
-def command_id_start(value: Any, now: float) -> int:
-    if value == "auto":
-        dt = datetime.fromtimestamp(now, timezone.utc)
-        return max(1, int((dt.hour * 3600 + dt.minute * 60 + dt.second) * 10 + dt.microsecond // 100_000))
-    return max(1, int(value))
+def _base36(n: int) -> str:
+    digits = "0123456789abcdefghijklmnopqrstuvwxyz"
+    out = ""
+    while n:
+        n, r = divmod(n, 36)
+        out = digits[r] + out
+    return out or "0"
 
 
 @dataclass(slots=True)
@@ -112,12 +121,13 @@ class OutputService:
         self.rules = SafetyRules(self.safety_cfg)
         self.effects = EffectTracker(self.cfg.get("effects", {}))
         cmd_cfg = self.cfg.get("commands", {})
-        self.cmd_ids = CommandIds(cmd_cfg.get("id_prefix", "brain"), command_id_start(cmd_cfg.get("id_start", 1), clock()))
+        self.cmd_ids = CommandIds(cmd_cfg.get("id_prefix", "brain"), cmd_cfg.get("id_start", "auto"), clock())
         self.ids = IdGenerator("out")
         acks = self.cfg.get("acks", {})
         self.ack_timeout_s = float(acks.get("timeout_s", 4))
         self.retries = int(acks.get("retries", 1))
         self._offline_states = set(self.safety_cfg.get("guardian_offline_states", ["offline"]))
+        self._twin_offline_states = set(self.safety_cfg.get("twin_offline_states", ["offline"]))
         self._unverified_trust = float(self.safety_cfg.get("evidence", {}).get("unverified_trust", 1.0))
         self._s4_any = self.safety_cfg.get("s4_scope", "same_action") == "any_action"
 
@@ -248,8 +258,7 @@ class OutputService:
         was_status = self.layers.get(layer)
         self.layers[layer] = status
         if layer == "twin":
-            offline = set(self.safety_cfg.get("twin_offline_states", ["offline"]))
-            if was_status in offline and status not in offline and self._last_sent:
+            if was_status in self._twin_offline_states and not self.twin_offline() and self._last_sent:
                 # the Twin restarted: its actuators are back to their defaults, the cooldowns are moot
                 self._last_sent.clear()
                 self.log.info("cooldowns_cleared", reason="twin back online")
@@ -271,6 +280,9 @@ class OutputService:
 
     def guardian_offline(self) -> bool:
         return self.layers.get("guardian") in self._offline_states
+
+    def twin_offline(self) -> bool:
+        return self.layers.get("twin") in self._twin_offline_states
 
     # --- decisions ----------------------------------------------------------------------
 
@@ -333,7 +345,7 @@ class OutputService:
         ))
         if refusal is None and device is None:     # S5 turned off: still never command an unknown id
             refusal = Refusal("S5", f"unknown target {a.target_id}")
-        if refusal is None and self.rules.on("S7") and                 self.layers.get("twin") in set(self.safety_cfg.get("twin_offline_states", ["offline"])):
+        if refusal is None and self.rules.on("S7") and self.twin_offline():
             refusal = Refusal("S7", "Twin offline: the command would not be executed")
         if refusal is not None:
             self._refuse(d, a, refusal, label)
@@ -419,7 +431,11 @@ class OutputService:
         p.attempts += 1
         p.sent_at = now
         self.stats["retried"] += 1
-        self._publish(p.topic, p.payload, p.qos, False)       # same id, same signed bytes
+        # same id (the Twin executes an id at most once) but a fresh timestamp and seal: the original
+        # bytes may already be older than the Twin's command age limit, and it would refuse them
+        p.command = p.command.model_copy(update={"timestamp": self._iso()})
+        p.payload = self._seal(p.command.model_dump(exclude_none=True))
+        self._publish(p.topic, p.payload, p.qos, False)
         self.log.warning("command_retried", command_id=p.command.id, correlation_id=p.decision.correlation_id,
                          target_id=p.command.target_id, attempt=p.attempts)
         self._event("command_retried", f"no ack from {p.command.target_id} after {self.ack_timeout_s:g} s: "

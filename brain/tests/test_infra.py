@@ -79,3 +79,25 @@ def test_certificates_have_the_key_identifiers_strict_tls_needs(tmp_path, monkey
     san = server.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
     assert "127.0.0.1" in [str(i) for i in san.get_values_for_type(x509.IPAddress)]
     assert "10.0.0.7" in [str(i) for i in san.get_values_for_type(x509.IPAddress)]
+
+
+def test_launcher_never_restarts_a_module_after_stop():
+    spec = importlib.util.spec_from_file_location("brain_launcher_stop", BRAIN / "run.py")
+    run = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(run)
+    m = run.Module("x", "nothing.here", "37", {"restart": {"max_per_minute": 5, "backoff_s": [0.05]}})
+
+    class Dead:                                    # a process that has just crashed
+        returncode, pid = 1, 1
+
+        def poll(self):
+            return 1
+
+    m.proc = Dead()
+    started = []
+    m.start = lambda: started.append(1) if not m.stopping else None
+    m.check()                                      # schedules the restart
+    m.stop()                                       # Ctrl+C before it fires
+    import time
+    time.sleep(0.15)
+    assert started == [] and m.stopping

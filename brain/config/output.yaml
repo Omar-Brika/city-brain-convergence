@@ -5,8 +5,8 @@ tick_s: 0.5                 # how often timeouts and effect checks are evaluated
 
 commands:
   id_prefix: brain          # command ids: brain-000042
-  # First counter value. auto = tenths of a second since UTC midnight (6 digits), so a restarted
-  # module never reuses an id of the same day (the Twin answers a reused id with the old ack).
+  # auto: ids brain-<session>-000001 (session = start time, base 36): never reused across restarts
+  # or days (the Twin answers a reused id with the old acknowledgement). integer: brain-000042 style.
   id_start: auto            # auto | integer
   fill_dispatch_zone: true  # unit dispatch: parameters.zone_id = the incident zone
 

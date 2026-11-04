@@ -313,6 +313,8 @@ class LlmStatus(_Internal):
 
 IncidentType = Literal["flood", "fire", "accident", "traffic_jam", "power_problem"]
 Severity = Literal["low", "medium", "high", "critical"]
+# the one ordering of severities (higher = more severe): every module compares through this
+SEVERITY_RANK: dict[str, int] = {"low": 0, "medium": 1, "high": 2, "critical": 3}
 
 
 class IncidentEvidence(BaseModel):
