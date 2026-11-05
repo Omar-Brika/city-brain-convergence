@@ -57,8 +57,11 @@ def check(answer: str, ctx: Context, cfg: dict[str, Any]) -> Checked:
     errors: list[str] = []
     actions: list[ProposalAction] = []
     seen: set[tuple[str, str]] = set()
+    param_spec = cfg.get("action_params")
     for i, item in enumerate(raw_actions):
-        problem, action = _check_action(item, ctx, int(v["max_params"]))
+        problem, action = _check_action(item, ctx, int(v["max_params"]), lenient_params=param_spec is not None)
+        if action is not None and param_spec is not None:
+            action.params = _allowed_params(action, ctx, param_spec)
         if problem:
             errors.append(f"action {i}: {problem}")
             continue
@@ -77,7 +80,32 @@ def check(answer: str, ctx: Context, cfg: dict[str, Any]) -> Checked:
     return Checked(True, actions, clean_text(justification, int(v["max_justification_chars"])), errors)
 
 
-def _check_action(item: Any, ctx: Context, max_params: int) -> tuple[str | None, ProposalAction | None]:
+def _allowed_params(action: ProposalAction, ctx: Context, spec: dict[str, Any]) -> dict:
+    """Keep only the parameters the action accepts (config action_params), within bounds.
+
+    Models invent parameters ({"priority": "emergency_units"}); those must never reach an
+    actuator. Unknown or out-of-range values are dropped, the action itself is kept.
+    """
+    rules = spec.get(action.action) or {}
+    area = {ctx.incident.zone_id, *ctx.neighbours}
+    kept: dict[str, str | int | float | bool] = {}
+    for name, value in action.params.items():
+        rule = rules.get(name)
+        if rule == "zone":
+            if isinstance(value, str) and value in area:
+                kept[name] = value
+        elif isinstance(rule, dict):
+            if isinstance(value, (int, float)) and not isinstance(value, bool) \
+                    and rule.get("min", -math.inf) <= value <= rule.get("max", math.inf):
+                kept[name] = value
+    return kept
+
+
+def _check_action(item: Any, ctx: Context, max_params: int,
+                  lenient_params: bool = False) -> tuple[str | None, ProposalAction | None]:
+    """Device and action are checked strictly. Parameters: with an allowlist (lenient_params),
+    malformed ones are dropped like invented ones, since the action itself is valid; without
+    one, any malformed parameter refuses the action."""
     if not isinstance(item, dict):
         return "not_an_object", None
     target, action, params = item.get("target_id"), item.get("action"), item.get("params", {})
@@ -93,12 +121,16 @@ def _check_action(item: Any, ctx: Context, max_params: int) -> tuple[str | None,
     if params is None:
         params = {}
     if not isinstance(params, dict) or len(params) > max_params:
-        return "bad_params", None
+        if not lenient_params:
+            return "bad_params", None
+        params = params if isinstance(params, dict) else {}
     clean: dict[str, str | int | float | bool] = {}
     for k, val in params.items():
-        if not isinstance(k, str) or len(k) > 32 or not isinstance(val, (str, int, float, bool)):
-            return "bad_params", None
-        if isinstance(val, float) and not math.isfinite(val):
-            return "bad_params", None
+        bad = (not isinstance(k, str) or len(k) > 32 or not isinstance(val, (str, int, float, bool))
+               or (isinstance(val, float) and not math.isfinite(val)))
+        if bad:
+            if not lenient_params:
+                return "bad_params", None
+            continue
         clean[k] = clean_text(val, 64) if isinstance(val, str) else val
     return None, ProposalAction(target_id=target, action=action, params=clean)

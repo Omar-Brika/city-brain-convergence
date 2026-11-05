@@ -11,8 +11,13 @@ from typing import Any
 from .config import resolve
 
 
+def iso_utc(t: float) -> str:
+    """A Unix time as ISO 8601 UTC with milliseconds, e.g. 2026-11-14T10:22:03.120Z."""
+    return datetime.fromtimestamp(t, timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
 def utc_now_iso() -> str:
-    """ISO 8601 UTC with milliseconds, e.g. 2026-11-14T10:22:03.120Z."""
+    """Now as ISO 8601 UTC with milliseconds, e.g. 2026-11-14T10:22:03.120Z."""
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 

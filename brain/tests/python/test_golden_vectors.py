@@ -5,7 +5,6 @@ against. Numerical agreement here is checked to the same tolerance (1e-12)
 the C test uses, confirming the two bindings compute identical results, not
 each having their own idea of "correct."
 """
-import math
 
 import pytest
 

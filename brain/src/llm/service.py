@@ -24,10 +24,10 @@ from typing import Any, Callable
 from pydantic import ValidationError
 
 from ..common import config
-from ..common.envelope import body_text, seal_multi
+from ..common.events import publish_event
 from ..common.ids import IdGenerator
 from ..common.log import EventLogger, utc_now_iso
-from ..common.models import LlmStatus, Proposal, TimelineEvent
+from ..common.models import SEVERITY_RANK, LlmStatus, Proposal
 from . import prompt as prompts
 from . import validate
 from .backends import BackendTimeout, BackendUnavailable, LlmBackend
@@ -36,7 +36,6 @@ from .incident import Incident
 
 Publisher = Callable[[str, str, int, bool], None]   # topic, payload, qos, retain
 
-SEVERITY_RANK = {"critical": 0, "high": 1, "medium": 2, "low": 3}
 
 
 @dataclass(slots=True)
@@ -72,13 +71,17 @@ class LlmService:
         self.ids = IdGenerator("llm")
         ctx_cfg = self.cfg["context"]
         self.city = CityState(self.cfg.get("unit_actions", {}), float(ctx_cfg["recent_calls_window_s"]),
-                              self.cfg.get("relevant_targets"), self.cfg.get("action_hints"))
+                              self.cfg.get("relevant_targets"), self.cfg.get("action_hints"),
+                              self.cfg.get("hidden_actions"),
+                              bool(self.cfg["context"].get("neighbour_actuators", True)))
         self.budget_s = float(self.cfg["budget"]["answer_s"])
         self._jobs: queue.PriorityQueue[tuple[int, int, Job]] = queue.PriorityQueue()
         self._latest: dict[str, int] = {}        # incident_id -> latest version (0 = closed)
         self._versions = 0
         self._lock = threading.Lock()
         self.status: str | None = None
+        self._slow_in_row = 0                     # consecutive answers over the budget
+        self._too_slow = False                    # offline because too slow, not unreachable
         self._last_health = float("-inf")
 
     # --- inputs -------------------------------------------------------------------
@@ -129,7 +132,7 @@ class LlmService:
             self._versions += 1
             version = self._versions
             self._latest[inc.incident_id] = version
-        rank = SEVERITY_RANK.get(inc.severity or "", len(SEVERITY_RANK))
+        rank = -SEVERITY_RANK.get(inc.severity or "", -1)      # most severe first; unknown last
         self._jobs.put((rank, version, Job(inc, version, now, now + self.budget_s)))
 
     def next_job(self, timeout_s: float | None = None) -> Job:
@@ -177,6 +180,17 @@ class LlmService:
         try:
             answer = self.backend.generate(p, remaining)
         except BackendTimeout:
+            # slowness of the model only counts if it had a fair share of the budget: a job that
+            # waited in the queue behind other incidents and got 1 s says nothing about the model
+            fair = float(self.cfg["budget"].get("fair_share", 0.6)) * self.budget_s
+            if remaining >= fair:
+                self._slow_in_row += 1
+            limit = int(self.cfg["budget"].get("offline_after_timeouts", 2))
+            if limit and self._slow_in_row >= limit:
+                # reachable but too slow (cold model, GPU throttled on battery): say so, so the
+                # scoring module decides on its rules at once instead of waiting the budget each time
+                self._too_slow = True
+                self.set_status("offline", f"{self._slow_in_row} answers in a row over the {self.budget_s:g} s budget")
             return self._timeout(job, f"no answer within {self.budget_s:g} s")
         except BackendUnavailable as e:
             self.set_status("offline", str(e)[:200])
@@ -191,7 +205,9 @@ class LlmService:
         if self._superseded(job):
             self.log.info("llm_answer_dropped", incident_id=inc.incident_id, reason="newer update or closed")
             return "superseded"
+        self._slow_in_row = 0
         if self.status != "online":
+            self._too_slow = False
             self.set_status("online")
 
         checked = validate.check(answer, ctx, self.cfg)
@@ -223,6 +239,8 @@ class LlmService:
             return
         self._last_health = now
         ok, reason = self.backend.health()
+        if ok and self._too_slow:
+            ok, reason = self._probe()               # reachable is not enough: it must answer in time
         was = self.status
         self.set_status("online" if ok else "offline", reason)
         if ok and was == "offline":
@@ -232,6 +250,21 @@ class LlmService:
                 self.log.info("llm_warmed_up", model=self.backend.name, after="recovery")
             except Exception as e:
                 self.log.warning("llm_warmup_failed", error=repr(e)[:200])
+
+    def _probe(self) -> tuple[bool, str | None]:
+        """After repeated timeouts: a tiny real answer must come back within the budget."""
+        probe = getattr(self.backend, "probe", None)
+        if probe is None:
+            return True, None
+        try:
+            elapsed = probe(self.budget_s)
+        except Exception as e:  # timeout or unavailable: still too slow
+            return False, f"still too slow ({type(e).__name__})"
+        if elapsed > self.budget_s:
+            return False, f"probe answered in {elapsed:.1f} s, over the {self.budget_s:g} s budget"
+        self._too_slow, self._slow_in_row = False, 0
+        self.log.info("llm_probe_ok", elapsed_s=round(elapsed, 2))
+        return True, None
 
     def set_status(self, status: str, reason: str | None = None) -> None:
         if status == self.status:
@@ -265,11 +298,6 @@ class LlmService:
         return "skipped"
 
     def _event(self, event: str, summary: str, inc: Incident | None = None) -> None:
-        body = TimelineEvent(
-            id=self.ids.next(), timestamp=utc_now_iso(), event=event, summary=summary,
-            correlation_id=inc.correlation_id if inc else None,
-            incident_id=inc.incident_id if inc else None,
-        ).model_dump(exclude_none=True)
-        payload = seal_multi(body, self.seal_keys) if self.seal_keys else body_text(body)
-        spec = self.topics["external_out"]["event"]
-        self._publish(spec["topic"], payload, int(spec["qos"]), bool(spec["retain"]))
+        publish_event(self._publish, self.topics, self.ids, self.seal_keys, event, summary,
+                      correlation_id=inc.correlation_id if inc else None,
+                      incident_id=inc.incident_id if inc else None)

@@ -13,10 +13,10 @@ from src.llm.incident import Incident
 from .conftest import CASES, DATA, answer
 
 
-def build_ctx(llm_cfg, case_id="B2", quarantined=(), unit_status=None, calls=None, relevant=True):
+def build_ctx(llm_cfg, case_id="B2", quarantined=(), unit_status=None, calls=None, relevant=True, hidden=None):
     case = CASES[case_id]
     city = CityState(llm_cfg["unit_actions"], llm_cfg["context"]["recent_calls_window_s"],
-                     llm_cfg["relevant_targets"] if relevant else None, llm_cfg["action_hints"])
+                     llm_cfg["relevant_targets"] if relevant else None, llm_cfg["action_hints"], hidden)
     city.apply_meta(DATA["city"])
     for d in quarantined or case.get("quarantined", []):
         city.apply_quarantine({"device_id": d, "state": "quarantined"})
@@ -96,8 +96,8 @@ def test_prompt_is_short_and_lists_allowed_actions(llm_cfg):
     p = prompts.build(build_ctx(llm_cfg, "B11"), llm_cfg)
     body = p.user.split("\n\nPropose")[0]
     assert len(body) <= llm_cfg["context"]["max_chars"]
-    assert ("grid-ind-1 (grid_switch actuator, zone industrial): switch_backup [feeds the zone from the backup line], "
-            "isolate [cuts power to the zone]") in p.user
+    assert ("- grid_switch: switch_backup [feeds the zone from the backup line], isolate [cuts power to the zone]"
+            " -> grid-ind-1 (industrial)") in p.user
     assert "INCIDENT inc-0070: fire in zone industrial" in p.user
     assert p.version == llm_cfg["prompt"]["version"]
 
@@ -196,17 +196,56 @@ def test_duplicate_actions_are_merged(llm_cfg):
     assert c.ok and len(c.actions) == 1
 
 
-@pytest.mark.parametrize("params", [{"a": {"nested": 1}}, {"a": [1]}, {str(i): i for i in range(9)}, "x"])
-def test_bad_params_are_refused(llm_cfg, params):
+BAD_PARAMS = [{"a": {"nested": 1}}, {"a": [1]}, {str(i): i for i in range(9)}, "x"]
+
+
+@pytest.mark.parametrize("params", BAD_PARAMS)
+def test_bad_params_are_dropped_when_an_allowlist_exists(llm_cfg, params):
     text = json.dumps({"actions": [{"target_id": "valve-port-up", "action": "open", "params": params}],
                        "justification": "x"})
-    assert not check(llm_cfg, text).ok
+    c = check(llm_cfg, text)
+    assert c.ok and c.actions[0].params == {}           # the action is kept, the junk never published
+
+
+@pytest.mark.parametrize("params", BAD_PARAMS)
+def test_bad_params_are_refused_without_an_allowlist(llm_cfg, params):
+    cfg = copy.deepcopy(llm_cfg)
+    cfg.pop("action_params")
+    text = json.dumps({"actions": [{"target_id": "valve-port-up", "action": "open", "params": params}],
+                       "justification": "x"})
+    assert not validate.check(text, build_ctx(cfg, "B2"), cfg).ok
 
 
 def test_good_params_are_kept(llm_cfg):
-    text = json.dumps({"actions": [{"target_id": "valve-port-up", "action": "open", "params": {"percent": 80}}],
+    text = json.dumps({"actions": [{"target_id": "valve-port-up", "action": "open", "params": {"opening": 0.8}}],
                        "justification": "x"})
-    assert check(llm_cfg, text).actions[0].params == {"percent": 80}
+    assert check(llm_cfg, text).actions[0].params == {"opening": 0.8}
+
+
+@pytest.mark.parametrize("params", [{"priority": "emergency_units"}, {"opening": 3}, {"opening": True}])
+def test_invented_or_out_of_range_params_are_dropped_not_fatal(llm_cfg, params):
+    text = json.dumps({"actions": [{"target_id": "valve-port-up", "action": "open", "params": params}],
+                       "justification": "x"})
+    c = check(llm_cfg, text)
+    assert c.ok and c.actions[0].params == {}
+
+
+def test_dispatch_zone_must_be_in_the_incident_area(llm_cfg):
+    def zone_of(z):
+        text = json.dumps({"actions": [{"target_id": "rescue-1", "action": "dispatch", "params": {"zone_id": z}}],
+                           "justification": "x"})
+        return check(llm_cfg, text).actions[0].params
+    assert zone_of("port") == {"zone_id": "port"} and zone_of("docks") == {"zone_id": "docks"}
+    assert zone_of("hospital") == {}                        # not next to the port
+
+
+def test_units_come_first_and_restoring_actions_are_hidden(llm_cfg):
+    cfg = copy.deepcopy(llm_cfg)
+    cfg["hidden_actions"] = ["close"]
+    ctx = build_ctx(cfg, "B2", hidden=["close"])
+    lines = prompts.build(ctx, cfg).user.split("ALLOWED ACTIONS:")[1].split("QUARANTINED")[0].strip().splitlines()
+    assert lines[0].startswith("- ambulance unit") or lines[0].startswith("- rescue unit")
+    assert all("close" not in t.actions for t in ctx.targets.values())
 
 
 def test_justification_is_cleaned_and_bounded(llm_cfg):
@@ -255,11 +294,35 @@ def test_service_tracks_incidents_it_receives(make_service):
     assert "inc-0069: traffic_jam" in service.backend.prompts[0].user
 
 
-def test_extended_cases_file_is_current():
-    """cases_extended.yaml is generated: regenerate with python -m tests.llm.make_cases."""
+def test_benchmark_case_files_are_current():
+    """The benchmark files are generated: regenerate with python -m tests.llm.make_cases."""
     import yaml
     from pathlib import Path
-    from .make_cases import generate
-    on_disk = yaml.safe_load((Path(__file__).parent / "cases_extended.yaml").read_text(encoding="utf-8"))
-    assert on_disk == generate()
-    assert len(on_disk["cases"]) >= 50
+    from .make_cases import FILES
+    for name, make in FILES.items():
+        on_disk = yaml.safe_load((Path(__file__).parent / name).read_text(encoding="utf-8"))
+        assert on_disk == make(), f"{name} is out of date"
+    assert len(FILES["cases_city.yaml"]()["cases"]) >= 50
+
+
+def test_benchmark_cases_only_use_devices_of_the_demo_city():
+    from .make_cases import CITY, generate_city, generate_testbook
+    ids = {a["actuator_id"] for a in CITY["actuators"]} | {u["unit_id"] for u in CITY["units"]}
+    types = {a["type"] for a in CITY["actuators"]} | {u["type"] for u in CITY["units"]}
+    for data in (generate_city(), generate_testbook()):
+        for case in data["cases"]:
+            exp = case["expect"]
+            pairs = exp["any"] + [p for g in exp.get("also", []) for p in g]
+            for target, _ in pairs:
+                assert target in ids or target in types, (case["id"], target)
+            for target in exp.get("forbid", []) + case.get("quarantined", []):
+                assert target in ids or target in types, (case["id"], target)
+
+
+def test_neighbour_actuators_can_be_left_out(llm_cfg):
+    city = CityState(llm_cfg["unit_actions"], 900, None, None, None, neighbour_actuators=False)
+    city.apply_meta(DATA["city"])
+    ctx = city.build(Incident.model_validate(CASES["B2"]["incident"]), 0, 3)       # port
+    assert "valve-port-up" in ctx.targets and "signal-port-2" in ctx.targets
+    assert "valve-docks" not in ctx.targets and "signal-centre-1" not in ctx.targets
+    assert "rescue-1" in ctx.targets                                                # units: all free ones

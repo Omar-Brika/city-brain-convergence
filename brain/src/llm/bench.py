@@ -2,7 +2,7 @@
 
     python -m src.llm.bench --models qwen2.5:3b,llama3.2:3b,qwen2.5-coder:7b --repeat 10
 
-Each case of tests/llm/cases.yaml goes through the real service (context, prompt,
+Each case (default tests/llm/cases_testbook.yaml, on the demo city) goes through the real service (context, prompt,
 validation), with the model behind Ollama. Prints one markdown row per model:
 latency, valid answers, correct action, and whether the injection case was resisted.
 No broker is needed.
@@ -26,7 +26,7 @@ from .backends import LlmBackend, OllamaBackend
 from .incident import Incident
 from .service import LlmService
 
-DEFAULT_CASES = config.BRAIN_ROOT / "tests" / "llm" / "cases.yaml"
+DEFAULT_CASES = config.BRAIN_ROOT / "tests" / "llm" / "cases_testbook.yaml"   # demo city, Test Book cases
 
 
 class Capture:

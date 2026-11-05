@@ -36,6 +36,7 @@ class Target:
     actions: list[str]
     state: str | None = None
     hints: dict[str, str] = field(default_factory=dict)   # action -> what it does
+    controls: list[str] = field(default_factory=list)     # zones an actuator acts on
 
 
 @dataclass(slots=True)
@@ -63,10 +64,15 @@ class CityState:
 
     def __init__(self, unit_actions: dict[str, list[str]], recent_calls_window_s: float,
                  relevant_targets: dict[str, list[str]] | None = None,
-                 action_hints: dict[str, dict[str, str]] | None = None):
+                 action_hints: dict[str, dict[str, str]] | None = None,
+                 hidden_actions: list[str] | None = None, neighbour_actuators: bool = True):
         self.unit_actions = unit_actions
         self.relevant = relevant_targets or {}
         self.hints = action_hints or {}
+        self.hidden = set(hidden_actions or [])     # restoring actions (normal, close): not a response
+        # actuators that only act on a neighbouring zone (a signal next door) rarely help, and a
+        # long list of them crowds the emergency units out of a small model's answer
+        self.neighbour_actuators = neighbour_actuators
         self.window_s = recent_calls_window_s
         self.zones: dict[str, list[str]] = {}          # zone_id -> adjacent zones
         self.actuators: dict[str, dict[str, Any]] = {}
@@ -118,18 +124,21 @@ class CityState:
         area = {zone, *neighbours}
         targets: dict[str, Target] = {}
         # actuators of the zone first, then those of neighbouring zones
-        for near in (True, False):
+        for near in (True, False) if self.neighbour_actuators else (True,):
             for a in self.actuators.values():
                 controls = set(a.get("controls") or []) | {a["zone_id"]}
                 own = zone in controls
-                if own == near and controls & area:
+                actions = [x for x in a["actions"] if x not in self.hidden]
+                if own == near and controls & area and actions:
                     targets[a["actuator_id"]] = Target(
-                        a["actuator_id"], "actuator", a["type"], a["zone_id"], list(a["actions"]), a.get("state"))
+                        a["actuator_id"], "actuator", a["type"], a["zone_id"], actions, a.get("state"),
+                        controls=sorted(controls))
         for u in self.units.values():
             status = u.get("status")
             if status not in FREE_UNIT_STATUSES:
                 continue
-            actions = self.unit_actions.get(u["type"], self.unit_actions.get("default", []))
+            actions = [x for x in self.unit_actions.get(u["type"], self.unit_actions.get("default", []))
+                       if x not in self.hidden]
             if actions:
                 where = u.get("zone_id") or u.get("home_zone")
                 targets[u["unit_id"]] = Target(u["unit_id"], "unit", u["type"], where, list(actions), status)
@@ -218,6 +227,39 @@ def clean_text(text: str, max_chars: int) -> str:
     return text[:max_chars]
 
 
+def allowed_lines(ctx: Context) -> list[str]:
+    """Allowed actions grouped by device type: emergency units first, one hint per action.
+
+    One line per type keeps the prompt short and lets the model see the units, instead of a
+    long list of near-identical signals pushing them out of its attention.
+    """
+    groups: dict[tuple[str, str, tuple[str, ...]], list[Target]] = {}
+    for t in ctx.targets.values():
+        groups.setdefault((t.kind, t.type, tuple(t.actions)), []).append(t)
+    zone = ctx.incident.zone_id
+    units = [k for k in groups if k[0] == "unit"]
+    actuators = [k for k in groups if k[0] != "unit"]
+    # actuator types acting on the incident zone first
+    actuators.sort(key=lambda k: 0 if any(zone in (t.controls or [t.zone_id]) for t in groups[k]) else 1)
+    lines = []
+    for key in units + actuators:
+        kind, typ, actions = key
+        members = groups[key]
+        hints = members[0].hints
+        verbs = ", ".join(f"{a} [{hints[a]}]" if a in hints else a for a in actions)
+        where = []
+        for t in members:
+            if kind == "unit":
+                where.append(f"{t.target_id} at {t.zone_id or '?'}")
+            else:
+                acts_on = t.controls or [t.zone_id]
+                place = ("feeds " + ", ".join(acts_on)) if acts_on != [t.zone_id] else (t.zone_id or "?")
+                where.append(f"{t.target_id} ({place}{', ' + t.state if t.state else ''})")
+        label = f"{typ} unit" if kind == "unit" else typ
+        lines.append(f"- {label}: {verbs} -> {'; '.join(where)}")
+    return lines
+
+
 def render(ctx: Context, max_chars: int, call_text_max_chars: int) -> str:
     """Compact text of the context. Lowest-value parts are dropped first to fit max_chars."""
     inc = ctx.incident
@@ -234,12 +276,7 @@ def render(ctx: Context, max_chars: int, call_text_max_chars: int) -> str:
         + (f", trust {_num(e.trust)}" if e.trust is not None else "")
         for e in inc.evidence
     ]
-    allowed = [
-        f"- {t.target_id} ({t.type} {t.kind}, zone {t.zone_id or '?'}"
-        + (f", {t.state}" if t.state else "") + "): "
-        + ", ".join(f"{a} [{t.hints[a]}]" if a in t.hints else a for a in t.actions)
-        for t in ctx.targets.values()
-    ]
+    allowed = allowed_lines(ctx)
     quarantined = f"QUARANTINED: {', '.join(sorted(ctx.quarantined)) or 'none'}"
     calls = [
         f'<call_text zone="{c.zone_id}" category="{c.category}">'

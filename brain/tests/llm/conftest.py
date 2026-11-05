@@ -5,15 +5,16 @@ import json
 from typing import Any, Callable
 
 import pytest
+from pathlib import Path
 
 from src.common import config
 from src.common.log import EventLogger
 from src.llm.backends import BackendTimeout
-from src.llm.bench import DEFAULT_CASES, feed, load_cases
+from src.llm.bench import feed, load_cases
 from src.llm.prompt import Prompt
 from src.llm.service import LlmService
 
-DATA = load_cases(DEFAULT_CASES)
+DATA = load_cases(Path(__file__).parent / "cases.yaml")   # small unit-test city
 CASES = {c["id"]: c for c in DATA["cases"]}
 T0 = 1_800_000_000.0
 
@@ -79,10 +80,40 @@ def answer(*actions: tuple[str, str], justification: str = "Because.") -> str:
                        "justification": justification})
 
 
+# The unit tests use the small city of cases.yaml, whose device types and actions differ from
+# the demo city (config/llm.yaml follows brain/mocks/city.yaml). Its policy is set here.
+TEST_CITY_POLICY = {
+    "relevant_targets": {
+        "flood": ["valve", "traffic_signal", "rescue", "ambulance"],
+        "fire": ["fire", "ambulance", "traffic_signal", "grid_switch"],
+        "accident": ["ambulance", "police", "rescue", "traffic_signal"],
+        "traffic_jam": ["traffic_signal", "police"],
+        "power_problem": ["grid_switch", "traffic_signal"],
+    },
+    "action_hints": {
+        "valve": {"open": "drains water from the zone", "close": "stops draining"},
+        "traffic_signal": {"retime": "eases congestion", "close_inbound": "stops cars entering",
+                           "green_corridor": "clears a route for emergency units", "divert": "sends traffic around"},
+        "grid_switch": {"switch_backup": "feeds the zone from the backup line", "isolate": "cuts power to the zone"},
+    },
+    "playbook": {
+        "flood": [["valve", "open"], ["traffic_signal", "close_inbound"]],
+        "fire": [["fire", "dispatch"], ["traffic_signal", "green_corridor"]],
+        "accident": [["ambulance", "dispatch"], ["traffic_signal", "divert"]],
+        "traffic_jam": [["traffic_signal", "retime"]],
+        "power_problem": [["grid_switch", "switch_backup"]],
+    },
+}
+
+
 @pytest.fixture
 def llm_cfg() -> dict[str, Any]:
     cfg = copy.deepcopy(config.load("llm"))
     cfg["logging"] = {"file": None, "level": "ERROR", "log_prompts": False}
+    cfg["relevant_targets"] = copy.deepcopy(TEST_CITY_POLICY["relevant_targets"])
+    cfg["action_hints"] = copy.deepcopy(TEST_CITY_POLICY["action_hints"])
+    cfg["mock"]["playbook"] = copy.deepcopy(TEST_CITY_POLICY["playbook"])
+    cfg["context"]["neighbour_actuators"] = True      # the test city's cases rely on neighbouring devices
     return cfg
 
 

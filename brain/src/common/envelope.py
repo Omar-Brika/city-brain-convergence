@@ -51,6 +51,11 @@ def seal_multi(body: dict[str, Any], keys: dict[str, bytes]) -> str:
     return json.dumps({"v": ENVELOPE_VERSION, "body": text, "hmacs": hmacs})
 
 
+
+def seal_for(body: dict[str, Any], keys: dict[str, bytes] | None) -> str:
+    """Envelope for the receiving layers, or the plain body text when sealing is off (tests, debug)."""
+    return seal_multi(body, keys) if keys else body_text(body)
+
 @dataclass(slots=True)
 class Envelope:
     body: str

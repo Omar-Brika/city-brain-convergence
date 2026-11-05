@@ -100,6 +100,14 @@ class OllamaBackend:
             return False, f"model {self.model} is build {digest[:12]}, config pins {self.digest[:12]}"
         return True, None
 
+    def probe(self, timeout_s: float) -> float:
+        """Seconds a tiny real answer takes (loads the model if needed). Raises like generate()."""
+        start = time.monotonic()
+        self._post("/api/generate", {"model": self.model, "prompt": "Answer with the JSON {\"ok\": true}.",
+                                     "format": "json", "stream": False, "keep_alive": self.keep_alive,
+                                     "options": {"num_predict": 8, "temperature": 0}}, timeout_s)
+        return time.monotonic() - start
+
     def warmup(self, timeout_s: float) -> None:
         # an empty prompt loads the model into memory without generating anything
         self._post("/api/generate", {"model": self.model, "prompt": "", "keep_alive": self.keep_alive}, timeout_s)

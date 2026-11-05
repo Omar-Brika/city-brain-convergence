@@ -19,6 +19,15 @@ external_out:
   status: {topic: brain/status, qos: 1, retain: true}    # Last Will offline (BR-4)
   error:  {topic: brain/error,  qos: 0, retain: false}   # rejected messages (BR-5)
   event:  {topic: brain/event,  qos: 0, retain: false}   # timeline (BR-3)
+  cmd:    {topic: "brain/cmd/{target_id}", qos: 1, retain: false}   # commands to actuators / units (BR-1)
+  alert:  {topic: brain/alert,  qos: 1, retain: false}   # e.g. actuator not responding (team plan 05 §3)
+
+# Test-run control, published by the scenario runner (scenarios/run): the timeline starts a new
+# log file per run (R2). Not read by the decision modules.
+control:
+  run:    {topic: brain/control/run, qos: 1, retain: true}
+  # Mock LLM only: {"mode": "scripted" | "slow" | "offline" | "invalid"} (mocks/mock_llm/control.py)
+  llm:    {topic: brain/control/llm, qos: 1, retain: false}
 
 internal:
   # Published by the input module (formats: team-docs overview, section 3)

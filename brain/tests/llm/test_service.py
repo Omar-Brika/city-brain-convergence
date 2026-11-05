@@ -200,3 +200,56 @@ def test_model_is_warmed_up_again_after_recovery(make_service, clock):
     clock.t += 10
     service.tick()                                              # back online -> warm-up
     assert Counting.warmups == 1
+
+
+def test_too_slow_runtime_goes_offline_then_recovers_through_a_probe(make_service, bus, clock):
+    """Reachable but too slow (cold model, GPU on battery): after two timeouts in a row llm-status goes
+    offline, so scoring stops waiting the 8 s budget; a probe answering in time brings it back."""
+    class Slow(FakeBackend):
+        probe_s = 30.0
+
+        def probe(self, timeout_s):
+            return self.probe_s
+
+    backend = Slow(answer(("valve-port-up", "open")), clock, takes_s=30)
+    service = make_service(backend)
+    service.tick()                                              # online
+    for i in range(2):
+        inc = copy.deepcopy(CASES["B2"]["incident"]) | {"incident_id": f"inc-slow-{i}"}
+        feed(service, DATA["city"], CASES["B2"] | {"incident": inc})
+        assert service.process(service.next_job(0)) == "timeout"
+    statuses = bus.on("brain/internal/llm-status")
+    assert statuses[-1]["status"] == "offline" and "2 answers in a row over the 8 s budget" in statuses[-1]["reason"]
+    # while offline, incidents are handed over at once (no backend call)
+    calls = len(backend.prompts)
+    inc = copy.deepcopy(CASES["B2"]["incident"]) | {"incident_id": "inc-slow-x"}
+    feed(service, DATA["city"], CASES["B2"] | {"incident": inc})
+    assert service.process(service.next_job(0)) == "timeout" and len(backend.prompts) == calls
+    clock.t += 10
+    service.tick()                                              # probe still too slow: stays offline
+    assert bus.on("brain/internal/llm-status")[-1]["status"] == "offline"
+    backend.probe_s = 1.2
+    clock.t += 10
+    service.tick()
+    assert bus.on("brain/internal/llm-status")[-1]["status"] == "online"
+
+
+def test_one_timeout_alone_does_not_switch_off_the_llm(run_case, bus, clock):
+    _, outcome = run_case("B2", FakeBackend(answer(("valve-port-up", "open")), clock, takes_s=30))
+    assert outcome == "timeout"
+    assert all(s["status"] != "offline" for s in bus.on("brain/internal/llm-status"))
+
+
+def test_timeouts_after_queue_wait_do_not_switch_the_llm_off(make_service, bus, clock):
+    """Several incidents at once: the last ones get what is left of the budget. Their timeouts do not
+    mean the model is slow, so the circuit breaker must not open."""
+    backend = FakeBackend(answer(("valve-port-up", "open")), clock, takes_s=30)
+    service = make_service(backend)
+    service.tick()
+    for i in range(3):
+        inc = copy.deepcopy(CASES["B2"]["incident"]) | {"incident_id": f"inc-q-{i}"}
+        feed(service, DATA["city"], CASES["B2"] | {"incident": inc})
+        job = service.next_job(0)
+        clock.t += 6                                            # waited 6 of the 8 s in the queue
+        assert service.process(job) == "timeout"
+    assert all(s["status"] != "offline" for s in bus.on("brain/internal/llm-status"))

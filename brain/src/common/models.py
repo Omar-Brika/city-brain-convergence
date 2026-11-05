@@ -309,6 +309,101 @@ class LlmStatus(_Internal):
     reason: str | None = None
 
 
+# --- Internal (published by detection, scoring and output) --------------------------
+
+IncidentType = Literal["flood", "fire", "accident", "traffic_jam", "power_problem"]
+Severity = Literal["low", "medium", "high", "critical"]
+# the one ordering of severities (higher = more severe): every module compares through this
+SEVERITY_RANK: dict[str, int] = {"low": 0, "medium": 1, "high": 2, "critical": 3}
+
+
+class IncidentEvidence(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source_id: str                      # sensor id or call id
+    kind: Literal["reading", "call"]
+    value: float | None = None
+    unit: str | None = None
+    category: str | None = None         # call category
+    trust: float                        # weight used by detection: 0 (rejected) .. 1
+
+
+class Incident(_Internal):
+    """brain/internal/incident: opened / updated / closed (team plan 02, 4.4)."""
+
+    correlation_id: str                 # external message that started the chain
+    incident_id: str
+    type: IncidentType
+    zone_id: str
+    status: Literal["opened", "updated", "closed"]
+    confidence: float                   # 0..1, already includes Guardian's trust
+    severity: Severity
+    verified: bool                      # false when Guardian was offline during detection
+    evidence: list[IncidentEvidence]
+    reason: str | None = None           # why it opened / changed / closed (timeline, report)
+
+
+class DecisionAlternative(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    proposal_id: str
+    origin: Literal["llm", "rules"]
+    score: float
+
+
+class Decision(_Internal):
+    """brain/internal/decision: the actions chosen for an incident (team plan 04, section 6)."""
+
+    correlation_id: str
+    incident_id: str
+    chosen_proposal: str
+    origin: Literal["llm", "rules"]
+    actions: list[ProposalAction]
+    score: float
+    alternatives: list[DecisionAlternative] = []
+    risk: Literal["low", "medium", "high"]
+    evidence_sensors: list[str] = []
+    mode: Literal["normal", "safe"]     # safe = Guardian offline
+    explanation: str                    # one line for the timeline
+
+
+class Outcome(_Internal):
+    """brain/internal/outcome: what happened to one action of a decision (team plan 05, section 5)."""
+
+    correlation_id: str
+    incident_id: str
+    decision_id: str
+    target_id: str
+    action: str
+    status: Literal["sent", "refused", "acknowledged", "failed"]
+    command_id: str | None = None
+    rule: str | None = None             # safety rule that refused it (S1..S6)
+    detail: str | None = None
+
+
+# --- External bodies published by the output module -------------------------------
+
+
+class BrainCommand(_Internal):
+    """brain/cmd/{target_id} (BR-1), sealed for the Twin. Format accepted by the mock Twin."""
+
+    source: Literal["brain"] = "brain"
+    correlation_id: str                 # chain id (external message that started it)
+    target_id: str
+    action: str
+    parameters: dict[str, str | int | float | bool] = {}
+
+
+class BrainAlert(_Internal):
+    """brain/alert: a problem the Brain wants Guardian and the operators to know about."""
+
+    source: Literal["brain"] = "brain"
+    correlation_id: str | None = None
+    alert: Literal["actuator_not_responding", "actuator_no_effect", "command_rejected"]
+    target_id: str
+    detail: str
+
+
 INTERNAL_MODELS: dict[str, type[_Internal]] = {
     "internal-meta": InternalMeta,
     "internal-reading": InternalReading,
@@ -319,6 +414,11 @@ INTERNAL_MODELS: dict[str, type[_Internal]] = {
     "internal-layer-status": InternalLayerStatus,
     "internal-proposal": Proposal,
     "internal-llm-status": LlmStatus,
+    "internal-incident": Incident,
+    "internal-decision": Decision,
+    "internal-outcome": Outcome,
+    "brain-command": BrainCommand,
+    "brain-alert": BrainAlert,
     "brain-error": BrainError,
     "brain-status": BrainStatus,
     "brain-event": TimelineEvent,
