@@ -219,6 +219,23 @@ header { background: var(--bg); padding: .7rem 1.1rem; gap: 1.4rem; }
 .empty { font-size: .95rem; }
 #modal { background: #000b; }
 .m-legend { fill: var(--dim); }
+
+/* ---- modification 2: timeline as a table ---------------------------------------------- */
+.cols { display: grid; grid-template-columns: .38rem 7.3rem 6.9rem 1fr auto; gap: .65rem; padding: .35rem .8rem .35rem 0;
+  font-size: .78rem; font-weight: 600; color: var(--dim); border-bottom: 1px solid var(--line); }
+.timeline { background: var(--panel); }
+.row { grid-template-columns: .2rem 7.3rem 6.9rem 1fr auto; padding: .4rem .8rem .4rem 0; line-height: 1.35; }
+.cols { grid-template-columns: .2rem 7.3rem 6.9rem 1fr auto; }
+.row .bar { border-radius: 0; opacity: .8; }
+.row .time { font-size: .9rem; color: var(--dim); } .row .time small { color: var(--dim); opacity: .7; }
+.row .tag { font-size: .74rem; font-weight: 650; opacity: .95; }
+.row .text { font-size: 1rem; }
+.row .sig { opacity: .35; } .row .sig:hover { opacity: .9; }
+.lv-error { background: rgba(224, 100, 92, .07); }
+.lv-error .tag, .lv-error .text { color: #f0b4af; }
+.lv-error .bar { background: var(--err) !important; opacity: 1; }
+#rows::-webkit-scrollbar { width: .55rem; } #rows::-webkit-scrollbar-thumb { background: var(--line); border-radius: 1rem; }
+#rows::-webkit-scrollbar-track { background: transparent; }
 </style>
 </head>
 <body>
@@ -252,6 +269,7 @@ header { background: var(--bg); padding: .7rem 1.1rem; gap: 1.4rem; }
     <h2>Timeline <span class="live" id="live">LIVE</span>
       <span class="hint">hover: pause + chain &middot; click: details</span>
       <span class="filters" id="filters"></span></h2>
+    <div class="cols"><span></span><span>Time</span><span>Layer</span><span>Event</span><span></span></div>
     <div id="rows"><div class="empty" id="empty">waiting for events...</div><div class="newbadge" id="newbadge"></div></div>
   </section>
   <section class="side">
