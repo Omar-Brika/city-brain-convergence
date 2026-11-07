@@ -23,9 +23,10 @@ const THEME = {
 };
 const HEX = THEME.colors;
 // numbers shown on the slides (measured, see docs/report/part2-city-brain.md)
+const TEAM = process.env.TEAM_NAME || "triplet-05";   // the triplet's name (title slide, footer)
 const N = {
-  scenarios: process.env.N_SCENARIOS || "14 / 14",
-  tests: process.env.N_TESTS || "601",
+  scenarios: process.env.N_SCENARIOS || "15 / 15",
+  tests: process.env.N_TESTS || "632",
   latency: process.env.N_LATENCY || "0.07 s",
   llm: process.env.N_LLM || "100 %",
   injections: process.env.N_INJ || "24 / 24",
@@ -40,7 +41,7 @@ async function icon(Comp, color, size = 256) {
 (async () => {
   const pres = new pptxgen();
   pres.layout = "LAYOUT_16x9";              // 10 x 5.625 in
-  pres.title = "City Brain - TSYP14 City Brain Convergence";
+  pres.title = `City Brain - ${TEAM} - TSYP14 City Brain Convergence`;
   pres.theme = { headFontFace: THEME.headFontFace, bodyFontFace: THEME.bodyFontFace };
   const C = pres.SchemeColor;
 
@@ -58,7 +59,7 @@ async function icon(Comp, color, size = 256) {
     objects: [
       { placeholder: { options: { name: "title", type: "title", x: 0.6, y: 0.35, w: 8.8, h: 0.75, fontSize: 30, bold: true,
         color: C.text1, valign: "middle", margin: 0 }, text: "" } },
-      { text: { text: "City Brain · TSYP14 Phase 1", options: { x: 0.6, y: 5.2, w: 5, h: 0.3, fontSize: 10, color: C.text2, margin: 0 } } },
+      { text: { text: `City Brain · ${TEAM} · TSYP14 Phase 1`, options: { x: 0.6, y: 5.2, w: 5, h: 0.3, fontSize: 10, color: C.text2, margin: 0 } } },
     ],
     slideNumber: { x: 9.0, y: 5.2, w: 0.4, h: 0.3, fontSize: 10, color: C.text2, align: "right" },
   });
@@ -69,7 +70,7 @@ async function icon(Comp, color, size = 256) {
   // 1 ---------------------------------------------------------------- title
   pres.addSection({ title: "Pitch" });
   let s = pres.addSlide({ masterName: "TITLE", sectionTitle: "Pitch" });
-  s.addText("TSYP14 · City Brain Convergence · Phase 1", { x: 0.6, y: 0.5, w: 8.8, h: 0.4, fontSize: 14,
+  s.addText(`TSYP14 · City Brain Convergence · Phase 1 · ${TEAM}`, { x: 0.6, y: 0.5, w: 8.8, h: 0.4, fontSize: 14,
     color: C.text2, margin: 0, isTextBox: true });
   s.addText("City Brain", { placeholder: "title" });
   s.addText("Detects incidents, decides, acts, and never acts on data it cannot trust", { placeholder: "body" });
@@ -192,9 +193,9 @@ async function icon(Comp, color, size = 256) {
     { x: 0.85, y: 3.8, w: 3.8, h: 0.95, valign: "middle", margin: 0, isTextBox: true });
   card(s, 5.2, 3.75, 4.2, 1.05, "demo-card");
   s.addText([{ text: "Live now", options: { fontSize: 18, bold: true, color: C.accent2, breakLine: true } },
-             { text: "fake flood · injected call · Guardian offline · stuck valve", options: { fontSize: 12, color: C.text2 } }],
+             { text: "fake flood · burnt toast · injected call · Guardian offline", options: { fontSize: 12, color: C.text2 } }],
     { x: 5.45, y: 3.8, w: 3.8, h: 0.95, valign: "middle", margin: 0, isTextBox: true });
-  s.addNotes("Nothing about our partners is in the code: point the Brain at any Twin and Guardian by configuration. Now, live: a fake flood, an injected call, the Guardian going offline and a stuck valve.");
+  s.addNotes("Nothing about our partners is in the code: point the Brain at any Twin and Guardian by configuration. Now, live: a fake flood, burnt toast that is not a fire, an injected call, and the Guardian going offline.");
 
   await pres.writeFile({ fileName: OUT });
   await applyTheme(OUT, THEME);

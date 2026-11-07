@@ -24,6 +24,7 @@ expectation and exits 0 / 1. Prerequisites: broker, Brain and mocks running (`sc
 | [B11](#b11) | Fire, power spike and a jam next door | Twin, Guardian, City Brain | 60 s |
 | [B12](#b12) | LLM offline during a flood | Twin, Guardian, City Brain | 50 s |
 | [B13](#b13) | Twin goes offline | Twin, Guardian, City Brain | 65 s |
+| [B14](#b14) | Burnt toast in the residential zone (smoke without fire) | Twin, Guardian, City Brain | 60 s |
 | [T5](#t5) | Fake flood at the port (organizer example T5) | Twin, Guardian, City Brain | 45 s |
 
 ## B1
@@ -97,9 +98,9 @@ expectation and exits 0 / 1. Prerequisites: broker, Brain and mocks running (`sc
 | Trigger | `python scenarios/run.py B5` |
 | Expected (Twin) | Fire readings and calls in zone-05, accident readings and calls in zone-03; unit-ambulance-02 refuses commands. |
 | Expected (Guardian) | Readings trusted; unit-ambulance-02 quarantined from the start. |
-| Expected (City Brain) | Two incidents; unit-ambulance-01 dispatched once, to the incident with the higher priority (numbers on the timeline); never unit-ambulance-02; a fire truck to zone-05. |
+| Expected (City Brain) | Two incidents (the fire also recognised by the case memory); unit-ambulance-01 dispatched once, to the incident with the higher priority (numbers on the timeline); never unit-ambulance-02; a fire truck to zone-05. |
 | How to verify | Timeline: two incidents opened -> decisions with their scores -> one ambulance dispatch -> fire truck dispatch. logs/B5-*.log: one brain/cmd/unit-ambulance-01 dispatch, none to unit-ambulance-02. |
-| Automatic checks | `event=device_quarantined text=unit-ambulance-02 within_s=5`<br>`event=incident_opened match={"zone_id":"zone-05","type":"fire"} within_s=25`<br>`event=incident_opened match={"zone_id":"zone-03","type":"accident"} within_s=30`<br>`command={"target_id":"unit-ambulance-01","action":"dispatch"} within_s=45`<br>`max_commands={"target_id":"unit-ambulance-01","action":"dispatch","count":1}`<br>`no_command={"target_id":"unit-ambulance-02"}`<br>`command={"target_type":"fire_truck","action":"dispatch"} within_s=45`<br>`decision={"target_id":"unit-ambulance-01"} within_s=45` |
+| Automatic checks | `event=device_quarantined text=unit-ambulance-02 within_s=5`<br>`event=incident_opened match={"zone_id":"zone-05","type":"fire"} within_s=25`<br>`event=case_fire text=zone-05 within_s=50`<br>`event=incident_opened match={"zone_id":"zone-03","type":"accident"} within_s=30`<br>`command={"target_id":"unit-ambulance-01","action":"dispatch"} within_s=45`<br>`max_commands={"target_id":"unit-ambulance-01","action":"dispatch","count":1}`<br>`no_command={"target_id":"unit-ambulance-02"}`<br>`command={"target_type":"fire_truck","action":"dispatch"} within_s=45`<br>`decision={"target_id":"unit-ambulance-01"} within_s=45` |
 
 ## B6
 
@@ -220,6 +221,21 @@ expectation and exits 0 / 1. Prerequisites: broker, Brain and mocks running (`sc
 | Expected (City Brain) | Twin marked offline then online on the timeline; no command between 17 s and 45 s. |
 | How to verify | Timeline: twin offline -> (no commands) -> twin online. logs/B13-*.log: layer_offline / layer_online events for twin, no brain/cmd line between those two times. |
 | Automatic checks | `event=layer_offline text=twin after_s=14 within_s=20`<br>`layer=twin match={"status":"offline"} after_s=14 within_s=20`<br>`no_command=any after_s=17 within_s=45`<br>`event=layer_online text=twin after_s=44 within_s=55` |
+
+## B14
+
+| Field | Value |
+|---|---|
+| ID | B14 |
+| Name | Burnt toast in the residential zone (smoke without fire) |
+| Layers involved | Twin, Guardian, City Brain |
+| Description | From 5 s the residential zone (zone-06) fills with as much smoke as the fire of B5 (air quality 12 -> 250 ug/m3, above its alert level), but it is burnt toast: the Twin replays a NIST smoke alarm test of toast (held out of the case memory), so smoke rises while CO, CO2 and heat stay flat. Nobody calls. The case memory recognises cooking among the most similar lab cases, detection holds the smoke readings down, and no fire is opened: no fire truck leaves for a kitchen. |
+| Trigger | `python scenarios/run.py B14` |
+| Expected (Twin) | Air quality above alert in zone-06, smoke sensor up, CO, CO2 and temperature at their calm values; no call. |
+| Expected (Guardian) | Readings trusted (the smoke is real, only its cause is harmless). |
+| Expected (City Brain) | Case memory verdict COOKING for zone-06 on the timeline; no fire incident in zone-06; no fire truck dispatched. |
+| How to verify | Timeline: "smoke looks like COOKING, not a fire: 15 of 15 most similar lab cases are cooking"; map badge COOKING SMOKE, NOT FIRE on the Residential zone; no incident row, no beam to a fire truck. logs/B14-*.log: a case_nuisance event, no incident_opened for zone-06 fire, no brain/cmd/unit-fire-*. |
+| Automatic checks | `event=case_nuisance text=zone-06 within_s=40`<br>`no_event=incident_opened match={"zone_id":"zone-06","type":"fire"}`<br>`no_command={"target_type":"fire_truck"}` |
 
 ## T5
 

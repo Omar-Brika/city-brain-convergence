@@ -56,6 +56,10 @@ checks:
     traffic_flow: 100
     power_load: 600
     air_quality: 400
+    smoke: 15                # %/ft: a burnt toast jumps by ~3.5 at once (NIST), a real fire climbs
+    co: 100
+    co2: 3000
+    temperature: 15
   # After a rejected jump the sensor stays rejected until its value comes back near the last trusted level.
   # rebase_n > 0 would accept a new level held that many readings with noise; off, because a forged
   # reading with realistic noise (T5) looks exactly like that, and every real scenario step is within max_step.

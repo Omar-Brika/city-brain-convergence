@@ -25,7 +25,7 @@ def test_every_message_passes_the_brain_input_checks(make_rig):
     rig.connect()
     rig.tick(10)
     assert rig.errors() == []
-    assert len(rig.internal("brain/internal/reading")) == 10 * 6 * 6    # 6 sensors in each of 6 zones
+    assert len(rig.internal("brain/internal/reading")) == 10 * (6 * 6 + 2 * 4)   # 6 types in 6 zones, 4 fire-signature types in 2
     assert {c["category"] for c in rig.internal("brain/internal/call")} == {"fire"}
     assert rig.internal("brain/internal/meta")[0]["sensors"]
     assert rig.internal("brain/internal/layer-status/twin")[-1]["status"] == "online"

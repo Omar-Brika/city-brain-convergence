@@ -18,7 +18,7 @@ shaped every choice:
 
 ## 2.2 Architecture
 
-Eight Python modules, each a separate process, talk over MQTT topics `brain/internal/*`. Each
+Nine Python modules, each a separate process, talk over MQTT topics `brain/internal/*`. Each
 module is a pure service (messages in, messages out, injected clock), tested without a broker; only
 a thin entry point wires it to MQTT. `python run.py` starts them all and restarts a crashed one.
 
@@ -51,12 +51,35 @@ and rising (or a flood call), a fire air quality and/or fire calls, an accident 
 sudden speed drop. Each source gets a probability `p = min(cap, weight × strength × trust)` and the
 confidence is `1 − ∏(1 − p)`. Caps make one source alone weak: a single reading reaches at most
 0.6, and all the calls of one zone count as **one** source capped at 0.55, so ten fake calls are
-still one source (B7). **Guardian's trust** enters here: trusted readings weigh 1 (or the
+still one source (B7). How long a call counts was measured, not guessed: in 5,613 NYC 311 flood calls
+during Hurricane Ida (our dataset study), calls from one ~1 km area came a median 19 minutes apart
+on the storm night, and half of the flooded areas got a second call within an hour of the first. So a
+flood call counts for an hour and two callers give full strength (`tools/calibrate_calls.py`
+recomputes this). Fire and accident calls keep a 2-minute window, because 311 is not an emergency
+line. **Guardian's trust** enters here: trusted readings weigh 1 (or the
 Guardian's score), suspicious 0.3, rejected 0 (ignored, so a rejected fake flood opens nothing:
 B3/T5), and readings without a verdict 0.6 with the incident marked *not verified*. An incident
 opens at confidence ≥ 0.5 on two checks in a row, is updated only on new evidence or a severity
 change, and closes below 0.25, so a long flood is one incident. A rush hour is recognised as
 city-wide (most zones slow together) and is not a jam (B1).
+
+**Case memory: fire or burnt toast?** Smoke alone does not say whether something is burning. The
+case memory compares the last 60 s of a zone's smoke, CO, CO₂ and ceiling temperature (level above
+the sensor's own baseline, and trend) with a library of 4,998 windows of the NIST smoke alarm tests
+(90 lab tests: flaming and smouldering fires, and four kinds of cooking). The 15 most similar lab
+cases vote: fire, cooking or quiet. The library and features come from our dataset study
+(`brain/vector-storage/`), where this search recognised the held-out test group 98.7 % of the time
+(our standard-library port gives the same 98.7 %). The physical reason is CO: it rises in all 30
+fire tests and in none of the 60 cooking tests. In the Brain the search is a plain in-memory scan of
+about 5,000 points (a few milliseconds, offline, no vector database). Its verdict is **not
+evidence**: it comes from the same sensors, so the safety rules never count it as a second source.
+A *fire* verdict is a support signal for the fire incident. A *cooking* verdict holds the smoke
+readings down (× 0.2), while residents' calls still count in full. Smoke alone, with no call, in a
+zone with these sensors waits up to 25 s for the verdict before a fire opens. The memory never talks
+a fire down, and a verdict needs 60 % of the votes. In B14 the Twin replays a burnt toast test held
+out of the library: as much smoke as the B5 fire, but no fire opens and no fire truck leaves. In B5
+and B11 the replayed fire is recognised as a fire. A Twin without CO sensors gets the plain
+behaviour.
 
 **Decision method: rules, LLM and a score.** For every incident, two proposals compete.
 
@@ -150,6 +173,7 @@ patterns (`config/topics.yaml`) and field-name mappings (`config/input.yaml`).
 | Prompt injection in a call | Call text in a data block it cannot close; only devices relevant to the incident type offered (no valve for an accident); answer schema enums; strict validation; parameter allowlist; then scoring and S1–S7 | B10, benchmark (all injection runs safe) |
 | Compromised or broken actuator | Quarantine respected (S1); effect check, alert to Guardian | B8, B6 |
 | Guardian down | Safe mode: risky actions need two sensor types (S6) | B4 |
+| Smoke that is not a fire | Case memory: the gas signature is compared with 4,998 lab cases (fire vs cooking); a derived verdict, never a second source | B14 (no fire truck for burnt toast), B5 |
 
 ## 2.6 Known limitations
 
@@ -166,5 +190,10 @@ patterns (`config/topics.yaml`) and field-name mappings (`config/input.yaml`).
   like an effect.
 - **The decision is not undone.** Switching to a better proposal never revokes actions already
   sent, and closing an incident does not recall its units.
+- **Case memory from one lab.** The library is 90 tests of one room and one material, with laboratory
+  sensors, and only zones with smoke and CO sensors use it. A smouldering fire before CO rises looks
+  like cooking (the known hard case of the study); with Guardian's real sensors this must be
+  re-checked. The 311 study calibrates only the flood-call window (a non-emergency line, one city, one storm),
+and the traffic study waits for its data.
 - **Shared HMAC keys.** Any holder of a pair key can sign for that pair; Ed25519 removes this for
   Guardian.

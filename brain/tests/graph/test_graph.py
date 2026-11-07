@@ -94,7 +94,7 @@ def full_chain(g: GraphService, clock: Clock) -> None:
 
 def test_city_graph_built_from_meta(graph):
     g = graph.g
-    assert g.count("zone") == 6 and g.count("sensor") == 36 and g.count("actuator") == 12 and g.count("unit") == 6
+    assert g.count("zone") == 6 and g.count("sensor") == 44 and g.count("actuator") == 12 and g.count("unit") == 6
     z3 = g.get("zone", "zone-03")
     assert {n.id for n in g.targets(z3, "NEXT_TO")} == {"zone-02", "zone-04", "zone-05", "zone-06"}
     grid = g.get("actuator", "grid-01")

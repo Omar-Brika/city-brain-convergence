@@ -287,7 +287,10 @@ def render(ctx: Context, max_chars: int, call_text_max_chars: int) -> str:
     nearby = list(ctx.nearby)
 
     def text() -> str:
-        parts = head + ["EVIDENCE:"] + (evidence or ["- none"]) + ["ALLOWED ACTIONS:"] + (allowed or ["- none"])
+        parts = head + ["EVIDENCE:"] + (evidence or ["- none"])
+        if inc.case:
+            parts += ["SIMILAR PAST CASES (case memory):", f"- {clean_text(inc.case, 240)}"]
+        parts += ["ALLOWED ACTIONS:"] + (allowed or ["- none"])
         parts.append(quarantined)
         if nearby:
             parts += ["OTHER OPEN INCIDENTS NEARBY (may be linked to this one):"] + nearby

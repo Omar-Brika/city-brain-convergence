@@ -39,6 +39,7 @@ laptops connecting over the demo network); `--renew-certs` recreates the certifi
 |---|---|---|---|
 | Input (front door) | `python -m src.input` | `src/input/` | `01-input` |
 | Detection (readings and calls -> incidents) | `python -m src.detection` | `src/detection/` | `02-graph` |
+| Case memory (fire or cooking? similar past cases) | `python -m src.memory` | `src/memory/` | `vector-storage/` |
 | Graph (city memory, context API on :8080) | `python -m src.graph` | `src/graph/` | `02-graph` |
 | LLM (local model, proposals) | `python -m src.llm` | `src/llm/` | `03-llm` |
 | Math (scoring + rule fallback, decisions) | `python -m src.scoring` | `src/scoring/`, `src/rules/` | `04-math-model` |
@@ -182,7 +183,33 @@ call ─────────────────────────
 trust/+, layer-status/guardian ─▶ weights ─────────┘                                                                    └─▶ brain/event
 ```
 
-**Consumes:** `brain/internal/meta`, `reading`, `call`, `trust/+`, `layer-status/+`. Zones, neighbours, sensors and alert levels all come from `meta`; no id is in the code.
+**Calls** of a zone and category are one source, capped (B7), over `calls.window_s` (120 s). The exception is `calls.by_category`: flood calls count for 60 min and are full at 2 callers. This is calibrated on 5,613 NYC 311 flood calls during Hurricane Ida (storm night: a median 19 min between calls of one ~1 km area; 51 % of flooded areas had a second call within an hour). `python tools/calibrate_calls.py` recomputes it from `vector-storage/data/nyc311/`.
+
+**Consumes:** `brain/internal/meta`, `reading`, `call`, `trust/+`, `layer-status/+`, `case` (case memory). Zones, neighbours, sensors and alert levels all come from `meta`; no id is in the code.
+## Case memory
+
+"Which past cases look like this moment?": the dataset study of `vector-storage/` (NIST smoke alarm tests) running inside the Brain, offline.
+
+```
+readings (smoke, co, co2, temperature) ─▶ 1 value / s / sensor ─▶ last 60 s vs own baseline ─▶ 7 numbers ─▶ 15 nearest of 4,998 lab cases ─▶ vote
+                                                                                                          └─▶ brain/internal/case ─▶ detection, timeline
+                                                                                                          └─▶ brain/event case_fire / case_nuisance
+```
+
+- **Library:** `data/cases/nist_fire_windows.csv`, built by `python tools/build_cases.py --check` from `vector-storage/data/nist/nist_room_tests.zip`. It uses the same cleaning, windows, features and scales as the notebook, in the standard library only. `--check` reproduces the notebook's 98.7 % on the held-out group. Group 5 is kept out of the library; the mock Twin replays two of its tests (`mocks/twin/traces/fire.csv`, `cooking.csv`), so the live demo runs on cases the memory never saw.
+- **Per zone** with a sensor of every `required` type (`config/memory.yaml`: smoke and CO; the mock city has them in zone-05 and zone-06). A zone without them is never assessed and keeps the plain behaviour.
+- **The vote:** k = 15, Euclidean distance on signed-log features. A verdict needs `min_share` (60 %) of the votes. Falling smoke never starts a verdict (the tail of an episode). A *fire* verdict is never turned into *cooking*: the zone must be quiet first.
+- **Detection** (`config/detection.yaml` → `incidents.fire.memory`):
+  - *fire* adds a **support** source (it never opens an incident alone, and does not count for severity);
+  - *nuisance* multiplies the zone's reading sources by 0.2, while calls still count in full;
+  - readings alone in such a zone wait up to 25 s for a verdict before a fire opens;
+  - the memory's line travels in the incident's `case` field. It is never in `evidence`, so S3 and S6 never count it as an independent source.
+- **LLM:** the line appears in the prompt under *SIMILAR PAST CASES*.
+- **Timeline:** a row on each verdict change, and the map badge *COOKING SMOKE, NOT FIRE*.
+
+**Produces:** `brain/internal/case` (`CaseMatch`), `brain/event` (`case_fire`, `case_nuisance`).
+**Consumes:** `brain/internal/meta`, `reading`, `trust/+` (readings Guardian rejected are left out).
+
 ## Math module (scoring + rule fallback)
 
 One process, `python -m src.scoring`: the rule fallback (`src/rules/`) is called by the scoring service (`src/scoring/`), so a rule proposal always exists when the decision is taken, even with the LLM offline. Settings: `config/rules.yaml` (standard actions), `config/scoring.yaml` (every number of the score and the timing). Report paragraph: `docs/report/brain-scoring.md`.

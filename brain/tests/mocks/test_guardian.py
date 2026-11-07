@@ -84,7 +84,7 @@ def test_every_guardian_message_passes_the_brain_input_checks(grig):
     v = rig.verdicts("water-01")[0]
     assert v["source"] == "guardian" and v["correlation_id"].endswith("water-01-000001")
     assert v["verdict"] == "trusted" and 0 <= v["trust_score"] <= 1
-    assert len({b["sensor_id"] for b in rig.verdicts()}) == 36
+    assert len({b["sensor_id"] for b in rig.verdicts()}) == 44   # 6 types x 6 zones + 4 fire-signature types x 2 zones
     assert rig.trust("water-01")[0]["verdict"] == "trusted"
     assert rig.guardian_layer() == ["online"]
     # the fire scenario (air 12 -> 250 in one tick) is a real event: nothing rejected

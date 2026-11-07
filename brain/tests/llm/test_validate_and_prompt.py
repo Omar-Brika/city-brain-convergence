@@ -326,3 +326,15 @@ def test_neighbour_actuators_can_be_left_out(llm_cfg):
     assert "valve-port-up" in ctx.targets and "signal-port-2" in ctx.targets
     assert "valve-docks" not in ctx.targets and "signal-centre-1" not in ctx.targets
     assert "rescue-1" in ctx.targets                                                # units: all free ones
+
+
+def test_case_memory_line_is_shown_as_data(llm_cfg):
+    case = copy.deepcopy(CASES["B11"])
+    case["incident"]["case"] = "zone-05: looks like a REAL FIRE, 14 of 15 most similar lab cases are fires"
+    city = CityState(llm_cfg["unit_actions"], llm_cfg["context"]["recent_calls_window_s"],
+                     llm_cfg["relevant_targets"], llm_cfg["action_hints"], None)
+    city.apply_meta(DATA["city"])
+    ctx = city.build(Incident.model_validate(case["incident"]), now=100.0, max_calls=3)
+    p = prompts.build(ctx, llm_cfg)
+    assert "SIMILAR PAST CASES (case memory):\n- zone-05: looks like a REAL FIRE" in p.user
+    assert "SIMILAR PAST CASES" not in prompts.build(build_ctx(llm_cfg, "B11"), llm_cfg).user

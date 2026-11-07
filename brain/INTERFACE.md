@@ -42,6 +42,14 @@ Common body fields: `id`, `timestamp` (ISO 8601 UTC, ms), `source` (`twin` / `gu
 
 Unknown extra fields are ignored. Guardian is considered offline after 30 s without a live verdict.
 
+**Sensor types the Brain understands** (the type names of `twin/meta`; others are stored and shown, but used by
+no incident rule; names are configuration in `config/detection.yaml` and `config/memory.yaml`):
+`water_level` (m), `air_quality` (ug/m3), `traffic_speed`, `traffic_density`, `traffic_flow`, `power_load` (kW),
+and, optional, a **fire signature** per zone: `smoke` (obscuration, %/ft), `co` (ppm), `co2` (ppm),
+`temperature` (deg C). Where a zone has at least `smoke` and `co`, the case memory compares their last
+minute with 4,998 NIST lab cases to tell a real fire from cooking (B14). Without them, fires are
+detected from air quality and calls as before.
+
 ## Outputs (Brain → Twin, Guardian, timeline)
 
 | Topic | QoS | Ret. | Body example |

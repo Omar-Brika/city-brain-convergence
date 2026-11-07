@@ -20,7 +20,8 @@ python scenarios/make_testbook.py   # regenerate TESTBOOK.md after editing a fil
 | B4 | Guardian offline during a flood | B11 | Fire, power spike and a jam next door |
 | B5 | Fire and accident, one ambulance | B12 | LLM offline during a flood |
 | B6 | Stuck valve | B13 | Twin goes offline |
-| B7 | Ten fake fire calls in one minute | T5 | Same run as B3, under the organizers' id |
+| B7 | Ten fake fire calls in one minute | B14 | Burnt toast: smoke without fire (case memory) |
+| | | T5 | Same run as B3, under the organizers' id |
 
 ## Before a run
 

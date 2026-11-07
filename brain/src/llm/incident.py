@@ -36,3 +36,4 @@ class Incident(BaseModel):
     severity: str | None = None             # low | medium | high | critical
     verified: bool | None = None
     evidence: list[Evidence] = []
+    case: str | None = None                 # the case memory's line (similar past cases), if any

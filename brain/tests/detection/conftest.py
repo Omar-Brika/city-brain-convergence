@@ -30,6 +30,8 @@ def build_meta() -> dict[str, Any]:
     for z in CITY["zones"]:
         nn = z["zone_id"].split("-")[-1]
         for stype, spec in CITY["sensor_types"].items():
+            if spec.get("zones") is not None and z["zone_id"] not in spec["zones"]:
+                continue                       # as mocks/twin/city.py: only in the zones listed
             d = {"sensor_id": f"{spec['prefix']}-{nn}", "zone_id": z["zone_id"], "type": stype,
                  "unit": spec["unit"], "min": spec["min"], "max": spec["max"]}
             if "alert" in spec:

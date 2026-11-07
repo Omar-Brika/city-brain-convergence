@@ -9,6 +9,7 @@ Scenario effects are small scripted perturbations, not city physics.
 
 from __future__ import annotations
 
+import csv
 import json
 import math
 from copy import deepcopy
@@ -16,11 +17,37 @@ from datetime import datetime, timedelta, timezone
 from random import Random
 from threading import RLock
 from functools import cache
+from pathlib import Path
 from typing import Any
 
 from .city import UNIT_ACTIONS, City, load_city
 
-SCENARIOS = ("calm", "flood", "fire", "accident", "traffic-jam")
+SCENARIOS = ("calm", "flood", "fire", "accident", "traffic-jam", "cooking")
+TRACES_DIR = Path(__file__).with_name("traces")
+# trace column -> sensor type it is added to (rises above the calm value, one row per tick)
+TRACE_SIGNALS = {"smoke": "smoke", "co": "co", "co2_ppm": "co2", "temperature": "temperature"}
+
+
+@cache
+def trace(name: str) -> tuple[dict[str, float], ...]:
+    """A replayed NIST smoke alarm test (tools/build_cases.py): rises per second; empty if absent."""
+    path = TRACES_DIR / f"{name}.csv"
+    if not path.is_file():
+        return ()
+    with open(path, encoding="utf-8", newline="") as f:
+        rows = [r for r in csv.reader(f) if r and not r[0].startswith("#")]
+    head = rows[0]
+    return tuple({k: float(v) for k, v in zip(head, r, strict=True) if k in TRACE_SIGNALS} for r in rows[1:])
+
+
+def _add_trace(values: dict[str, float], name: str, age: int) -> None:
+    rows = trace(name)
+    if not rows:
+        return
+    row = rows[min(max(age, 0), len(rows) - 1)]          # the last second holds after the end
+    for col, stype in TRACE_SIGNALS.items():
+        if stype in values:
+            values[stype] += row[col]
 
 FAULT_MODES = (
     # reading faults
@@ -520,8 +547,11 @@ class Twin:
         return math.sin(math.pi * (self.tick - r["start_tick"]) / (r["end_tick"] - r["start_tick"]))
 
     def _generate_truth(self) -> None:
-        def jitter(base: float) -> float:
-            return round(base * (1 + self._rng.uniform(-self.config.noise, self.config.noise)), 3)
+        def jitter(base: float, absolute: float = 0.0) -> float:
+            v = base * (1 + self._rng.uniform(-self.config.noise, self.config.noise))
+            if absolute:
+                v += self._rng.uniform(-absolute, absolute)
+            return round(v, 3)
 
         # calm values per zone and sensor type, then the zone's scenario, then the effects of commands
         zone_values = {z: {sp["type"]: sp["baseline"] for sp in self.sensors.values() if sp["zone_id"] == z}
@@ -547,7 +577,11 @@ class Twin:
                     self._calls.append(call("flood"))
             elif scenario == "fire":
                 v["air_quality"], v["power_load"] = 250., 650.
+                _add_trace(v, "fire", age)             # smoke, CO, CO2, heat of a real fire (if sensed here)
                 self._calls.append(call("fire"))
+            elif scenario == "cooking":                  # burnt toast: as much smoke as the fire, no CO, no call
+                v["air_quality"] = 250.
+                _add_trace(v, "cooking", age)
             elif scenario == "accident" and age >= 2:
                 v["traffic_speed"], v["traffic_density"], v["traffic_flow"] = 5., 160., 2.
                 self._calls.append(call("accident"))
@@ -570,5 +604,6 @@ class Twin:
                 elif t in self.actuators and a == "shed": v["power_load"] *= .85
                 elif t in self.units and self.units[t]["type"] == "fire_truck": v["air_quality"] *= .7
                 elif t in self.units: v["traffic_speed"] += 5.; v["traffic_flow"] += 3.
-        self._truth = {sid: _clamp(jitter(zone_values[sp["zone_id"]][sp["type"]]), sp["min"], sp["max"])
+        self._truth = {sid: _clamp(jitter(zone_values[sp["zone_id"]][sp["type"]], sp.get("noise_abs", 0.0)),
+                                   sp["min"], sp["max"])
                        for sid, sp in self.sensors.items()}

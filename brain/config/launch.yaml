@@ -9,6 +9,7 @@ restart:
 modules:                   # name: python module (python -m <module>)
   input: src.input
   detection: src.detection
+  memory: src.memory
   graph: src.graph
   llm: src.llm
   scoring: src.scoring

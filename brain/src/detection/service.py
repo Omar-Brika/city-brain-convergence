@@ -68,8 +68,8 @@ class Call:
 
 @dataclass(slots=True)
 class Source:
-    key: str                     # sensor id or "calls:<category>"
-    kind: str                    # reading | call
+    key: str                     # sensor id, "calls:<category>" or "case:<zone>"
+    kind: str                    # reading | call | case (case memory: derived from the readings, not evidence)
     role: str                    # primary | support
     p: float
     evidence: list[IncidentEvidence]
@@ -88,6 +88,7 @@ class Assessment:
     sources: list[Source] = field(default_factory=list)
     note: str | None = None      # why the confidence is held down (suppressed, ...)
     rejected: list[str] = field(default_factory=list)   # abnormal primary sensors Guardian rejected
+    case: str | None = None      # the case memory's line, when it changed the assessment
 
     @property
     def keys(self) -> set[str]:
@@ -112,6 +113,7 @@ class Track:
     close_streak: int = 0
     incident: OpenIncident | None = None
     announced: set[str] = field(default_factory=set)   # rejected sensors already on the timeline
+    hold_since: float | None = None                     # opening held for the case memory since
 
 
 class DetectionService:
@@ -143,8 +145,9 @@ class DetectionService:
         self.trust: dict[str, tuple[str, float | None]] = {}   # sensor_id -> (verdict, score)
         self.guardian_online = True
         self.twin_status: str | None = None
-        self.calls: deque[Call] = deque(maxlen=500)
+        self.calls: deque[Call] = deque(maxlen=2000)        # a flood call counts for an hour (calls.by_category)
         self.tracks: dict[tuple[str, str], Track] = {}
+        self.cases: dict[str, dict[str, Any]] = {}          # zone -> newest case memory verdict (+ "_at")
         self._citywide_until = float("-inf")
         self._citywide_median = float("inf")
 
@@ -158,7 +161,7 @@ class DetectionService:
             (t["call"]["topic"], 1),
             (t["trust"]["topic"].replace("{sensor_id}", "+"), 1),
             (t["layer_status"]["topic"].replace("{layer}", "+"), 1),
-        ]
+        ] + ([(t["case"]["topic"], 1)] if "case" in t else [])
 
     def handle(self, topic: str, payload: bytes | str, retained: bool = False) -> None:
         try:
@@ -185,6 +188,9 @@ class DetectionService:
                         self.twin_restarted()
             elif topic == t["meta"]["topic"]:
                 self.on_meta(msg)
+            elif "case" in t and topic == t["case"]["topic"]:
+                self.cases[msg["zone_id"]] = {**msg, "_at": self.clock()}
+                self.check()
         except (KeyError, TypeError, ValueError) as e:
             self.log.warning("internal_message_refused", topic=topic, error=str(e)[:300])
 
@@ -327,6 +333,7 @@ class DetectionService:
                     if s:
                         s.desc += f" (neighbour {nz})"
                         a.sources.append(s)
+        self._apply_case(a, spec.get("memory"), now)
         a.sources.extend(calls)
 
         min_p = float(comb["min_source"])
@@ -344,6 +351,42 @@ class DetectionService:
             a.note = "no call confirms it"
         a.sources.sort(key=lambda s: -s.p)
         return a
+
+    def _apply_case(self, a: Assessment, mem: dict[str, Any] | None, now: float) -> None:
+        """The case memory's verdict for the zone (src/memory), if fresh and clear enough.
+
+        fire: one more *support* source (it never opens an incident alone, and never counts as an
+        independent source for severity or the safety rules: it is derived from the same sensors).
+        nuisance (e.g. cooking): the zone's reading sources are held down by `nuisance_factor`;
+        residents' calls still count in full (they are added after this)."""
+        case = self.cases.get(a.zone_id)
+        if not mem or not case or case.get("incident_type") != a.type                 or now - case["_at"] > float(mem.get("max_age_s", 20)) or float(case["share"]) < float(mem["min_share"]):
+            return
+        verdict, n, k = case["verdict"], int(case["votes"].get(case["verdict"], 0)), int(case["k"])
+        if verdict == "nuisance":
+            for src in a.sources:
+                src.p *= float(mem["nuisance_factor"])
+            a.case = case.get("summary")
+            a.note = f"smoke looks like cooking ({n} of {k} similar lab cases)"
+        elif verdict == "fire":
+            p = min(float(self.cfg["combine"]["cap_single"]), float(mem["fire_weight"]) * float(case["share"]))
+            a.sources.append(Source(f"case:{a.zone_id}", "case", "support", p, [], now, case.get("correlation_id"),
+                                    f"case memory: {n} of {k} similar lab cases are fires"))
+            a.case = case.get("summary")
+
+    def _held_for_case(self, tr: Track, a: Assessment, now: float) -> bool:
+        """Readings alone in a zone with the memory's sensors (smoke, CO): wait up to memory.wait_s for
+        its verdict before opening, so burnt toast is not a fire. A call, or a verdict, ends the wait."""
+        mem = self.cfg["incidents"][a.type].get("memory") or {}
+        wait = float(mem.get("wait_s", 0))
+        types = set(mem.get("wait_for") or [])
+        if not wait or a.case is not None or any(s.kind == "call" for s in a.sources)                 or not any(d.get("zone_id") == a.zone_id and d.get("type") in types for d in self.decls.values()):
+            return False
+        if tr.hold_since is None:
+            tr.hold_since = now
+            self.log.info("incident_held_for_case_memory", zone_id=a.zone_id, type=a.type,
+                          confidence=round(a.confidence, 2), wait_s=wait)
+        return now - tr.hold_since < wait
 
     def _cleared_at(self, zone: str, spec: dict[str, Any], now: float) -> float | None:
         """When live, trusted primary sensors of the zone reported it back to normal.
@@ -371,26 +414,27 @@ class DetectionService:
     def _call_sources(self, zone: str, cats: dict[str, float], now: float,
                       not_before: float | None = None) -> list[Source]:
         c = self.cfg["calls"]
-        window = float(c["window_s"])
         out = []
         for cat, weight in cats.items():
+            per = (c.get("by_category") or {}).get(cat) or {}     # e.g. flood: calibrated on NYC 311 (Ida)
+            window = float(per.get("window_s", c["window_s"]))
             recent = [k for k in self.calls if k.zone_id == zone and k.category == cat and now - k.at <= window
                       and (not_before is None or k.at > not_before)]
             if not recent:
                 continue
-            strength = min(1.0, len(recent) / float(c["full_count"]))
+            strength = min(1.0, len(recent) / float(per.get("full_count", c["full_count"])))
             trust = float(c["trust"])
             p = min(float(c["cap"]), float(weight) * strength * trust)
             ev = [IncidentEvidence(source_id=k.call_id, kind="call", category=cat, trust=round(trust, 2))
                   for k in recent[-int(c["max_evidence"]):]]
             n = len(recent)
             out.append(Source(f"calls:{cat}", "call", "primary", p, ev, recent[0].at, recent[0].corr,
-                              f"{n} {cat} call{'s' if n > 1 else ''} in {window:g} s"))
+                              f"{n} {cat} call{'s' if n > 1 else ''} in {_span(window)}"))
         return out
 
     def severity(self, a: Assessment) -> str:
         s = self.cfg["severity"]
-        n = len(a.sources)
+        n = sum(1 for src in a.sources if src.kind != "case")   # the case memory is not another source
         margin = max((src.margin for src in a.sources if src.role == "primary"), default=0.0)
         conf = a.confidence
         if conf >= float(s["critical_confidence"]) and n >= int(s["critical_sources"]) \
@@ -424,7 +468,9 @@ class DetectionService:
             if inc is None:
                 self._announce_rejected(tr, a)
                 tr.open_streak = tr.open_streak + 1 if a.confidence >= float(lc["open_threshold"]) else 0
-                if tr.open_streak >= int(lc["open_checks"]):
+                if tr.open_streak == 0:
+                    tr.hold_since = None
+                if tr.open_streak >= int(lc["open_checks"]) and not self._held_for_case(tr, a, now):
                     self._open(tr, a, now)
                 continue
             if a.confidence < float(lc["close_threshold"]) or not a.sources:
@@ -561,7 +607,7 @@ class DetectionService:
             id=self.ids.next(), timestamp=utc_now_iso(), correlation_id=inc.correlation_id,
             incident_id=inc.incident_id, type=a.type, zone_id=a.zone_id, status=status,
             confidence=round(a.confidence, 2), severity=inc.severity, verified=inc.verified,
-            evidence=evidence, reason=reason[:300] or None,
+            evidence=evidence, reason=reason[:300] or None, case=(a.case or "")[:300] or None,
         )
         spec = self.topics["internal"]["incident"]
         self._publish(spec["topic"], msg.to_json(), int(spec["qos"]), bool(spec["retain"]))
@@ -594,6 +640,10 @@ class DetectionService:
 
 
 # --- helpers -------------------------------------------------------------------------------
+
+
+def _span(seconds: float) -> str:
+    return f"{seconds / 60:g} min" if seconds >= 600 else f"{seconds:g} s"
 
 
 def _prefix(template: str) -> str:

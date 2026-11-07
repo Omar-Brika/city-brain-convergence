@@ -10,7 +10,7 @@ logic, and use the same `src/common/` code as the Brain.
 | LLM | `python -m mocks.mock_llm [scripted\|slow\|offline\|invalid]` | `config/llm.yaml` (`mock`) | done |
 | Guardian | `python -m mocks.guardian` | `config/guardian-mock.yaml` | done |
 
-Scenarios that drive the three mocks (B1-B13, T5): `scenarios/README.md` at the repo root.
+Scenarios that drive the three mocks (B1-B14, T5): `scenarios/README.md` at the repo root.
 
 ## Twin mock
 
@@ -38,15 +38,19 @@ keeps ids unique across restarts, so the Brain's replay check never fires by acc
 **The city** (`mocks/city.yaml`): six zones (`zone-01` port, `zone-02` docks, `zone-03` centre, `zone-04`
 hospital zone, `zone-05` industrial with the substation, `zone-06` residential), 6 sensors per zone
 (`traffic-speed-NN`, `traffic-density-NN`, `traffic-flow-NN`, `water-NN`, `power-NN`, `air-NN`, NN =
-zone number), 3 valves, 7 traffic signals, 2 grid switches, 2 ambulances, 2 fire trucks, 1 police, 1
+zone number), plus a fire signature in zones 05 and 06 (`smoke-NN` %/ft, `co-NN` ppm, `co2-NN` ppm,
+`temp-NN` C, with an absolute noise floor so a calm value is never flat): 44 sensors, 3 valves, 7 traffic signals, 2 grid switches, 2 ambulances, 2 fire trucks, 1 police, 1
 rescue unit. A command changes the zones its actuator `controls` (`grid-01` also feeds `zone-06`); a
 unit works in the zone it was sent to (`dispatch` `zone_id`, default its home zone) and returns home.
 
 **Scenarios** (`sim.scenario` in `sim.scenario_zone`, started once, on the first tick at or after `scenario_after_ticks`, in auto and manual mode;
 a `trigger` control message (`scenario`, optional `zone`) starts one at once and cancels the configured start;
 a zone has one scenario at a time, zones run theirs side by side): `calm`, `flood` (water over
-1.3 m, rising), `fire` (particulates up + fire calls), `accident` (traffic drops + calls),
-`traffic-jam`. Effects are small scripted perturbations, not city physics. A target has one
+1.3 m, rising), `fire` (particulates up + fire calls; where the zone has the fire-signature
+sensors, a held-out NIST flaming foam test is replayed: smoke, CO, CO2 and heat rise),
+`accident` (traffic drops + calls), `traffic-jam`, `cooking` (burnt toast: particulates up as much as
+a fire, a held-out NIST toast test replayed: smoke up, no CO, no heat, no call). Traces:
+`twin/traces/*.csv`, written by `tools/build_cases.py`. Effects are small scripted perturbations, not city physics. A target has one
 effect at a time: a new command replaces it, `close` / `normal` or a unit being `free` again ends it.
 
 **Commands** (provisional, until the output module fixes the format). Topic

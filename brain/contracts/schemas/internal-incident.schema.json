@@ -144,6 +144,18 @@
       ],
       "default": null,
       "title": "Reason"
+    },
+    "case": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Case"
     }
   },
   "required": [
