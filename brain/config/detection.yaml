@@ -23,6 +23,10 @@ sensor:
     traffic_density: up
     traffic_speed: down
     traffic_flow: down
+    smoke: up
+    co: up
+    co2: up
+    temperature: up
   default_direction: either
   rising:
     window: 5                # readings compared (newest vs oldest of the window)
@@ -62,6 +66,12 @@ incidents:
       power_load: {weight: 0.3, role: support}
     calls: {fire: 0.6}
     neighbours: [air_quality]
+    # case memory (src/memory, config/memory.yaml): a fresh verdict for the zone with at least
+    # min_share of the votes. fire = a support source of fire_weight x share; nuisance (cooking) =
+    # the zone's reading sources x nuisance_factor (calls still count in full).
+    # wait_s: readings alone (no call) in a zone with a wait_for sensor wait this long for a verdict.
+    memory: {fire_weight: 0.5, nuisance_factor: 0.2, min_share: 0.6, max_age_s: 20,
+             wait_s: 25, wait_for: [smoke, co]}
   accident:
     sensors:
       traffic_speed: {weight: 0.45, role: primary, require_sudden: true}

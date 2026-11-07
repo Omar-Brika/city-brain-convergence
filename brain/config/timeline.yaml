@@ -21,7 +21,7 @@ subscribe:
   external_in: [call, actuator, unit, verdict, quarantine, twin_status, guardian_status]
   external_out: [event, error, alert, cmd, status]
   control: [run]
-  internal: [meta, reading, incident, proposal, decision, outcome, llm_status, layer_status]
+  internal: [meta, reading, incident, proposal, decision, outcome, case, llm_status, layer_status]
 
 buffer:
   recent_rows: 2000         # rows kept in memory for /api/recent, the chain view and SSE catch-up
@@ -44,9 +44,9 @@ display:
   verify_signatures: true   # check the HMAC of external messages (lock mark on the row)
   # colour of brain/event rows (others: info)
   error_events: [action_refused, command_failed, llm_invalid_output, input_rejected, guardian_offline]
-  warn_events: [safe_mode_on, command_retried, llm_timeout, llm_offline, llm_skipped, layer_offline,
+  warn_events: [case_fire, safe_mode_on, command_retried, llm_timeout, llm_offline, llm_skipped, layer_offline,
                 layer_degraded, device_quarantined]
-  ok_events: [command_acknowledged, effect_confirmed, safe_mode_off, layer_online, llm_online,
+  ok_events: [case_nuisance, command_acknowledged, effect_confirmed, safe_mode_off, layer_online, llm_online,
               device_released]
 
 map:
@@ -63,6 +63,7 @@ map:
   sea: west                # west | north | east | south | null (no coast drawn)
   recent_s: 12             # commands, acks and refusals stay drawn this long
   call_s: 30               # an emergency call keeps its phone mark this long
+  case_s: 20               # a case memory verdict (e.g. cooking, not fire) stays on its zone this long
 
 logging:
   file: logs/timeline.jsonl   # the module's own diagnostics (not the run logs)

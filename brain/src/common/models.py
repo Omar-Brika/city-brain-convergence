@@ -341,6 +341,30 @@ class Incident(_Internal):
     verified: bool                      # false when Guardian was offline during detection
     evidence: list[IncidentEvidence]
     reason: str | None = None           # why it opened / changed / closed (timeline, report)
+    # what the case memory says (not evidence: it is derived from the same sensors, so the safety
+    # rules never count it as an independent source), e.g. "looks like a real fire: 14 of 15 ..."
+    case: str | None = None
+
+
+class CaseMatch(_Internal):
+    """brain/internal/case: the case memory's verdict for one zone (src/memory).
+
+    The zone's live readings over the last window, encoded like the library's cases, and the
+    vote of the k most similar cases. Detection uses it as a support signal (fire) or to hold
+    down smoke readings (nuisance, e.g. cooking)."""
+
+    correlation_id: str | None = None   # newest reading that went into the window
+    zone_id: str
+    incident_type: IncidentType         # what the library is about (fire)
+    verdict: Literal["quiet", "nuisance", "fire"]
+    share: float                        # votes for the verdict / k
+    k: int
+    votes: dict[str, int]               # verdict -> neighbours
+    sources: dict[str, int]             # what the neighbours were (e.g. toast: 9, stir-fry: 6)
+    features: dict[str, float]          # the window, in the library's units
+    sensors: list[str]                  # sensors read
+    library: str                        # e.g. NIST smoke alarm tests (TN 1947)
+    summary: str                        # one line for the timeline and the LLM
 
 
 class DecisionAlternative(BaseModel):
@@ -417,6 +441,7 @@ INTERNAL_MODELS: dict[str, type[_Internal]] = {
     "internal-incident": Incident,
     "internal-decision": Decision,
     "internal-outcome": Outcome,
+    "internal-case": CaseMatch,
     "brain-command": BrainCommand,
     "brain-alert": BrainAlert,
     "brain-error": BrainError,

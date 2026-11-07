@@ -112,6 +112,7 @@ class TimelineService:
         self.outcomes: dict[str, dict[str, Any]] = {}        # target -> last outcome (sent/refused/...)
         self.commands: deque[dict[str, Any]] = deque(maxlen=60)   # recent Brain commands and their acks
         self.calls: deque[dict[str, Any]] = deque(maxlen=60)      # recent emergency calls
+        self.cases: dict[str, dict[str, Any]] = {}            # zone -> newest case memory verdict
         self.counters = {"messages": 0, "errors": 0, "sent": 0, "acked": 0, "refused": 0, "failed": 0,
                          "retried": 0, "alerts": 0, "bad_signatures": 0}
         self._rate: deque[float] = deque()
@@ -347,6 +348,11 @@ class TimelineService:
                                  cid=b.get("correlation_id"), incident_id=b.get("incident_id"))])
         if kind == "internal.decision":
             return self._emit([self._decision(b, R)])
+        if kind == "internal.case":             # map only: the memory's brain/event is the row
+            if b.get("zone_id"):
+                self.cases[b["zone_id"]] = {"verdict": b.get("verdict"), "share": b.get("share"),
+                                            "votes": b.get("votes"), "k": b.get("k"), "at": now}
+            return []
         if kind == "internal.outcome":          # map only: brain/event already has the rows
             if b.get("target_id"):
                 self.outcomes[b["target_id"]] = {k: b.get(k) for k in ("status", "action", "rule", "incident_id")}
@@ -659,6 +665,9 @@ class TimelineService:
                               "verdict": self._verdicts.get(sid)} for sid, s in self.sensors.items()},
             "commands": [{**{k: c[k] for k in ("id", "target_id", "action", "result")},
                           "age_s": round(now - c["at"], 1)} for c in self.commands if now - c["at"] <= recent],
+            "cases": {z: {k: c[k] for k in ("verdict", "share", "votes", "k")}
+                      for z, c in self.cases.items()
+                      if now - c["at"] <= float(m.get("case_s", 20)) and c.get("verdict") != "quiet"},
             "calls": [{"zone_id": c["zone_id"], "category": c["category"], "age_s": round(now - c["at"], 1)}
                       for c in self.calls if now - c["at"] <= float(m.get("call_s", 30))],
         }

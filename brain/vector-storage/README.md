@@ -2,7 +2,9 @@
 
 Three notebooks that take real public datasets, store them in **Qdrant** (similarity search) and **Neo4j** (explanations), and **combine both**: a new situation goes in, Qdrant finds the most similar past moments, Neo4j explains why they look alike and what happened around them.
 
-You run them in **Google Colab** against **your own** Qdrant Cloud cluster and Neo4j Aura instance. Nothing runs on this computer.
+You run them in **Google Colab** against **your own** Qdrant Cloud cluster and Neo4j Aura instance. The notebooks themselves don't run on this computer.
+
+**In the running Brain:** the NIST study is live as the **case memory** (`src/memory/`, see `brain/README.md` → *Case memory*). `python tools/build_cases.py --check` rebuilds the same 4,998 cases from `data/nist/nist_room_tests.zip`, reproduces the 98.7 % held-out result, and writes the two held-out tests the mock Twin replays. The search runs offline, in memory, without Qdrant (scenario B14: burnt toast, no fire truck).
 
 ## What we did
 

@@ -2,7 +2,8 @@
 # What the input module learns from `twin/meta`. Edit this file to change the city; nothing about it is
 # hard-coded in mocks/twin/. Ids must match [a-z0-9-]+.
 
-# One sensor of each type is made for every zone listed in `sensors` (default: all types). The sensor id is
+# One sensor of each type is made for every zone listed in `sensors` (default: all types, except a type
+# with `zones`, made only in those). The sensor id is
 # <prefix>-<NN>, where NN is the number of the zone (zone-03 -> traffic-speed-03).
 # baseline = calm-day value; the mock adds noise (sim.noise) and scenario / command effects.
 sensor_types:
@@ -12,6 +13,13 @@ sensor_types:
   water_level:     {prefix: water,           unit: m,            min: 0, max: 5,    baseline: 0.4, alert: 1.3}
   power_load:      {prefix: power,           unit: kW,           min: 0, max: 2000, baseline: 500}
   air_quality:     {prefix: air,             unit: ug/m3,        min: 0, max: 1000, baseline: 12,  alert: 150}
+  # Fire signature (the case memory, src/memory): only where fires and kitchens are, so the other
+  # zones keep their message rate. noise_abs = absolute noise in the unit (a flat 0 would look frozen
+  # to Guardian). The fire and cooking scenarios replay held-out NIST tests (twin/traces/).
+  smoke:           {prefix: smoke, unit: "%/ft", min: 0, max: 40,    baseline: 0.05, noise_abs: 0.01, zones: [zone-05, zone-06]}
+  co:              {prefix: co,    unit: ppm,    min: 0, max: 1000,  baseline: 3,    noise_abs: 0.3,  zones: [zone-05, zone-06]}
+  co2:             {prefix: co2,   unit: ppm,    min: 0, max: 20000, baseline: 450,  noise_abs: 5,    zones: [zone-05, zone-06]}
+  temperature:     {prefix: temp,  unit: C,      min: -20, max: 200, baseline: 22,   noise_abs: 0.1,  zones: [zone-05, zone-06]}
 
 # Six zones (team plan 06, section 4). zone-01 keeps the ids of the first single-zone mock.
 zones:

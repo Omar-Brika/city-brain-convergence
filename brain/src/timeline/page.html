@@ -435,7 +435,7 @@ function buildMap(st) {
     // sensors: one dot each, coloured by Guardian's verdict
     const sl = Object.entries(sensors).filter(([, v]) => v.zone_id === id).sort((a, b) => a[0] < b[0] ? -1 : 1);
     sl.forEach(([sid, v], k) => {
-      s += `<circle id="mn-${sid}" cx="${x + CW - 14 - k * 15}" cy="${y + 42}" r="5" fill="#475569"><title>${esc(sid)} (${esc(v.type)})</title></circle>`;
+      s += `<circle id="mn-${sid}" cx="${x + CW - 14 - (k % 6) * 15}" cy="${y + 42 + Math.floor(k / 6) * 13}" r="5" fill="#475569"><title>${esc(sid)} (${esc(v.type)})</title></circle>`;
     });
     // actuators along the bottom edge
     const al = Object.entries(acts).filter(([, v]) => v.zone_id === id).sort((a, b) => a[0] < b[0] ? -1 : 1);
@@ -496,8 +496,10 @@ function updateMap(st) {
     const o = $("mo-" + id);
     o.setAttribute("stroke", col); o.setAttribute("stroke-width", inc ? 4 : q ? 2.5 : 1.5);
     o.setAttribute("stroke-dasharray", q && !inc ? "9 6" : ""); o.classList.toggle("pulse", inc);
-    const b = $("mb-" + id);
-    if (inc && z.incident) { b.textContent = z.incident.type.toUpperCase().replace("_", " ") + " · " + sev; b.setAttribute("fill", col); }
+    const b = $("mb-" + id), cs = (m.cases || {})[id];
+    const votes = cs ? ` · ${(cs.votes || {})[cs.verdict] || 0}/${cs.k} cases` : "";
+    if (inc && z.incident) { b.textContent = z.incident.type.toUpperCase().replace("_", " ") + " · " + sev + (cs && cs.verdict === "fire" ? votes : ""); b.setAttribute("fill", col); }
+    else if (cs && cs.verdict === "nuisance") { b.textContent = "COOKING SMOKE, NOT FIRE" + votes; b.setAttribute("fill", "#fbbf24"); }
     else if (q) { b.textContent = "QUARANTINE " + z.quarantined.slice(0, 2).join(", "); b.setAttribute("fill", "#fbbf24"); }
     else { b.textContent = "NORMAL"; b.setAttribute("fill", "#34d399"); }
     $("mw-" + id).style.transform = `scaleY(${(level(st, z, "water_level") * .8).toFixed(3)})`;

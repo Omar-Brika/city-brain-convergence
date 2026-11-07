@@ -361,7 +361,7 @@ from mocks.twin.city import parse_city
 def test_city_has_the_devices_of_team_plan_06():
     meta = Twin().meta()
     assert len(meta["zones"]) == 6
-    assert len(meta["sensors"]) == 36 and {s["zone_id"] for s in meta["sensors"]} == {z["zone_id"] for z in meta["zones"]}
+    assert len(meta["sensors"]) == 44 and {s["zone_id"] for s in meta["sensors"]} == {z["zone_id"] for z in meta["zones"]}
     types = [a["type"] for a in meta["actuators"]]
     assert 2 <= types.count("valve") <= 3 and 6 <= types.count("traffic_signal") <= 12 and 1 <= types.count("power_grid") <= 2
     units = [u["type"] for u in meta["units"]]
@@ -602,3 +602,28 @@ def test_call_settings_are_checked():
                {"call_texts": {"ufo": ["x"]}}, {"call_texts": {"fire": []}}):
         with pytest.raises(ValueError):
             SimConfig(**kw)
+
+
+# --- fire signature (case memory) -------------------------------------------------------------
+
+
+def test_fire_signature_sensors_only_where_declared():
+    sig = {s for s, sp in SENSORS.items() if sp["type"] in ("smoke", "co", "co2", "temperature")}
+    assert {SENSORS[s]["zone_id"] for s in sig} == {"zone-05", "zone-06"} and len(sig) == 8
+    assert all(SENSORS[s]["noise_abs"] > 0 for s in sig)           # never a flat value (Guardian: frozen)
+
+
+def test_cooking_replays_toast_smoke_without_co_or_call():
+    t = Twin(SimConfig(scenario="cooking", scenario_zone="zone-06", scenario_after_ticks=1))
+    out = run(t, 30)
+    assert readings(out, "air-06")[-1] > 150 and readings(out, "smoke-06")[-1] > 3
+    assert max(readings(out, "co-06")) < 4 and max(readings(out, "temp-06")) < 23
+    assert not [o for o in out if o["kind"] == "call"]
+    assert len(set(readings(out, "co-06")[-10:])) > 1               # live noise
+
+
+def test_fire_replays_rising_co_and_heat():
+    t = Twin(SimConfig(scenario="fire", scenario_zone="zone-05", scenario_after_ticks=1))
+    out = run(t, 200)
+    co, temp = readings(out, "co-05"), readings(out, "temp-05")
+    assert co[-1] > co[0] + 8 and temp[-1] > temp[0] + 4 and readings(out, "smoke-05")[-1] > 5

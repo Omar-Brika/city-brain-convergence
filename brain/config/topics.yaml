@@ -44,3 +44,4 @@ internal:
   llm_status:   {topic: brain/internal/llm-status,                   qos: 1, retain: true}   # Last Will offline
   decision:     {topic: brain/internal/decision,                     qos: 1, retain: false}
   outcome:      {topic: brain/internal/outcome,                      qos: 1, retain: false}
+  case:         {topic: brain/internal/case,                         qos: 1, retain: false}   # case memory verdict per zone

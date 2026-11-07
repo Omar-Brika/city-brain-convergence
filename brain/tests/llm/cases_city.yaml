@@ -244,6 +244,30 @@ city:
     min: 0
     max: 1000
     alert: 150
+  - sensor_id: smoke-05
+    zone_id: zone-05
+    type: smoke
+    unit: '%/ft'
+    min: 0
+    max: 40
+  - sensor_id: co-05
+    zone_id: zone-05
+    type: co
+    unit: ppm
+    min: 0
+    max: 1000
+  - sensor_id: co2-05
+    zone_id: zone-05
+    type: co2
+    unit: ppm
+    min: 0
+    max: 20000
+  - sensor_id: temp-05
+    zone_id: zone-05
+    type: temperature
+    unit: C
+    min: -20
+    max: 200
   - sensor_id: traffic-speed-06
     zone_id: zone-06
     type: traffic_speed
@@ -283,6 +307,30 @@ city:
     min: 0
     max: 1000
     alert: 150
+  - sensor_id: smoke-06
+    zone_id: zone-06
+    type: smoke
+    unit: '%/ft'
+    min: 0
+    max: 40
+  - sensor_id: co-06
+    zone_id: zone-06
+    type: co
+    unit: ppm
+    min: 0
+    max: 1000
+  - sensor_id: co2-06
+    zone_id: zone-06
+    type: co2
+    unit: ppm
+    min: 0
+    max: 20000
+  - sensor_id: temp-06
+    zone_id: zone-06
+    type: temperature
+    unit: C
+    min: -20
+    max: 200
   actuators:
   - actuator_id: valve-01
     type: valve

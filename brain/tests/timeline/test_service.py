@@ -271,3 +271,21 @@ def test_map_without_config_still_draws_any_city(make, timeline_cfg):
     h2 = make(cfg={k: v for k, v in timeline_cfg.items() if k != "map"})
     m = h2.s.snapshot()["map"]
     assert m["layout"] == {} and m["sea"] is None and set(m["actuators"]) == {"valve-01"}
+
+
+def test_map_case_memory_verdict_on_its_zone_then_expires(h):
+    case = {"correlation_id": "twin-1", "zone_id": "zone-01", "incident_type": "fire", "verdict": "nuisance",
+            "share": 1.0, "k": 15, "votes": {"nuisance": 15}, "sources": {"toast": 15}, "features": {},
+            "sensors": [], "library": "NIST", "summary": "cooking"}
+    assert h.internal("brain/internal/case", case) == []          # the memory's brain/event is the row
+    assert h.s.snapshot()["map"]["cases"] == {"zone-01": {"verdict": "nuisance", "share": 1.0,
+                                                          "votes": {"nuisance": 15}, "k": 15}}
+    h.clock.t += h.s.cfg["map"]["case_s"] + 1
+    assert h.s.snapshot()["map"]["cases"] == {}
+
+
+def test_case_events_are_coloured(h):
+    r = one(h.brain("brain/event", {"event": "case_nuisance", "summary": "smoke looks like COOKING"}))
+    assert r["layer"] == "BRAIN" and r["level"] == "ok"
+    r = one(h.brain("brain/event", {"event": "case_fire", "summary": "looks like a REAL FIRE"}))
+    assert r["level"] == "warn"

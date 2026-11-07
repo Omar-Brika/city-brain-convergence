@@ -9,7 +9,7 @@ trigger: python scenarios/run.py B5
 expected:
   twin: Fire readings and calls in zone-05, accident readings and calls in zone-03; unit-ambulance-02 refuses commands.
   guardian: Readings trusted; unit-ambulance-02 quarantined from the start.
-  brain: Two incidents; unit-ambulance-01 dispatched once, to the incident with the higher priority (numbers on the timeline); never unit-ambulance-02; a fire truck to zone-05.
+  brain: Two incidents (the fire also recognised by the case memory); unit-ambulance-01 dispatched once, to the incident with the higher priority (numbers on the timeline); never unit-ambulance-02; a fire truck to zone-05.
 how_to_verify: >
   Timeline: two incidents opened -> decisions with their scores -> one ambulance dispatch -> fire
   truck dispatch. logs/B5-*.log: one brain/cmd/unit-ambulance-01 dispatch, none to unit-ambulance-02.
@@ -24,6 +24,7 @@ guardian: {modes: [auto, "quarantine:unit-ambulance-02"]}
 expect:
   - {event: device_quarantined, text: unit-ambulance-02, within_s: 5}
   - {event: incident_opened, match: {zone_id: zone-05, type: fire}, within_s: 25}
+  - {event: case_fire, text: zone-05, within_s: 50}      # the case memory recognises a real fire (NIST flaming foam, held out)
   - {event: incident_opened, match: {zone_id: zone-03, type: accident}, within_s: 30}
   - {command: {target_id: unit-ambulance-01, action: dispatch}, within_s: 45}
   - {max_commands: {target_id: unit-ambulance-01, action: dispatch, count: 1}}

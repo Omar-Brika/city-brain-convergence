@@ -24,8 +24,8 @@ const THEME = {
 const HEX = THEME.colors;
 // numbers shown on the slides (measured, see docs/report/part2-city-brain.md)
 const N = {
-  scenarios: process.env.N_SCENARIOS || "14 / 14",
-  tests: process.env.N_TESTS || "601",
+  scenarios: process.env.N_SCENARIOS || "15 / 15",
+  tests: process.env.N_TESTS || "628",
   latency: process.env.N_LATENCY || "0.07 s",
   llm: process.env.N_LLM || "100 %",
   injections: process.env.N_INJ || "24 / 24",
@@ -192,9 +192,9 @@ async function icon(Comp, color, size = 256) {
     { x: 0.85, y: 3.8, w: 3.8, h: 0.95, valign: "middle", margin: 0, isTextBox: true });
   card(s, 5.2, 3.75, 4.2, 1.05, "demo-card");
   s.addText([{ text: "Live now", options: { fontSize: 18, bold: true, color: C.accent2, breakLine: true } },
-             { text: "fake flood · injected call · Guardian offline · stuck valve", options: { fontSize: 12, color: C.text2 } }],
+             { text: "fake flood · burnt toast · injected call · Guardian offline", options: { fontSize: 12, color: C.text2 } }],
     { x: 5.45, y: 3.8, w: 3.8, h: 0.95, valign: "middle", margin: 0, isTextBox: true });
-  s.addNotes("Nothing about our partners is in the code: point the Brain at any Twin and Guardian by configuration. Now, live: a fake flood, an injected call, the Guardian going offline and a stuck valve.");
+  s.addNotes("Nothing about our partners is in the code: point the Brain at any Twin and Guardian by configuration. Now, live: a fake flood, burnt toast that is not a fire, an injected call, and the Guardian going offline.");
 
   await pres.writeFile({ fileName: OUT });
   await applyTheme(OUT, THEME);

@@ -20,7 +20,7 @@ UNIT_ACTIONS = ["dispatch", "recall"]
 @dataclass
 class City:
     zones: list[dict[str, Any]] = field(default_factory=list)
-    sensors: dict[str, dict[str, Any]] = field(default_factory=dict)      # sensor_id -> zone_id, type, unit, min, max, alert, baseline
+    sensors: dict[str, dict[str, Any]] = field(default_factory=dict)      # sensor_id -> zone_id, type, unit, min, max, alert, baseline, noise_abs
     actuators: dict[str, dict[str, Any]] = field(default_factory=dict)    # actuator_id -> type, zone_id, controls, actions
     units: dict[str, dict[str, Any]] = field(default_factory=dict)        # unit_id -> type, home_zone
 
@@ -50,7 +50,8 @@ def parse_city(raw: dict[str, Any]) -> City:
         for a in z["adjacent"]:
             if a not in known:
                 raise ValueError(f"city: zone {z['zone_id']} is adjacent to unknown zone {a!r}")
-        wanted = z.pop("sensors", None) or list(types)
+        wanted = z.pop("sensors", None) or [t for t, sp in types.items()
+                                            if sp.get("zones") is None or z["zone_id"] in sp["zones"]]
         number = re.search(r"(\d+)$", z["zone_id"])
         for t in wanted:
             if t not in types:
@@ -58,7 +59,8 @@ def parse_city(raw: dict[str, Any]) -> City:
             spec = types[t]
             sid = _check_id(f"{spec['prefix']}-{number.group(1) if number else z['zone_id']}", "sensor_id")
             city.sensors[sid] = {"zone_id": z["zone_id"], "type": t, "unit": spec["unit"], "min": spec["min"],
-                                 "max": spec["max"], "alert": spec.get("alert"), "baseline": float(spec["baseline"])}
+                                 "max": spec["max"], "alert": spec.get("alert"), "baseline": float(spec["baseline"]),
+                                 "noise_abs": float(spec.get("noise_abs", 0))}
     city.zones = zones
     for a in raw.get("actuators") or []:
         aid = _check_id(a.get("actuator_id"), "actuator_id")

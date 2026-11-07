@@ -1,9 +1,9 @@
 # City Brain: mocks and scenarios (report paragraph)
 
 **What.** Three stand-ins let the City Brain run and be tested alone (R1): a Twin mock (a six-zone
-city with 36 sensors, 12 actuators and 6 response units, scripted incidents, rush hour, emergency
+city with 44 sensors (a smoke, CO, CO₂ and temperature signature in two zones), 12 actuators and 6 response units, scripted incidents, rush hour, emergency
 calls with free text, fault injection, actuator modes), a Guardian mock (trust verdicts,
-quarantine, status) and a mock LLM. On top of them, 13 Test Book scenarios (B1-B13, plus T5, the
+quarantine, status) and a mock LLM. On top of them, 14 Test Book scenarios (B1-B14, plus T5, the
 organizers' fake-flood example) each start with one command, `python scenarios/run.py <ID>`, and
 leave one log file in `logs/` (R2). `TESTBOOK.md` is generated from the scenario files.
 
