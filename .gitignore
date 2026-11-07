@@ -237,3 +237,6 @@ brain/logs/*
 
 # Intermediate file of docs/report/build_report.py
 docs/report/_report.html
+
+# Neo4j export of the incident history (rebuilt by brain/tools/build_history.py --cypher)
+brain/data/history/*.cypher
