@@ -5,7 +5,7 @@ Put report.pdf and pitch.pdf here.
 | Folder / file | What it contains |
 |---|---|
 | [`report.pdf`](report.pdf) | **Phase 1 report** (parts 0–5), built by `python docs/report/build_report.py` from the Markdown below |
-| [`pitch.pdf`](pitch.pdf) | **Pitch deck** (6 slides); editable source and speaker notes in [`pitch/`](pitch/) |
+| [`pitch.pdf`](pitch.pdf) | **Pitch deck** (7 slides); editable source and speaker notes in [`pitch/`](pitch/) |
 | [`demo-script.md`](demo-script.md) | CSTAM slot: readiness checklist, the four live scenarios and what to say, expected questions, recovery in 2 minutes |
 | [`report/part2-city-brain.md`](report/part2-city-brain.md), [`report/part5-collaboration.md`](report/part5-collaboration.md) | Report parts 2 and 5 (part 0 is `../INTEGRATION.md`, part 4 is generated from the scenarios and their logs) |
 | [`challenge/phase1-requirements.md`](challenge/phase1-requirements.md) | What the organizers require for Phase 1 (rules R1–R4, scoring, report, Test Book, demo). Summary of the official Phase 1 Specifications PDF. |
@@ -14,6 +14,7 @@ Put report.pdf and pitch.pdf here.
 | [`repository/branches.md`](repository/branches.md) | Branches of this repository: what each contains and its state. |
 | [`repository/implementation-review.md`](repository/implementation-review.md) | Review of each implementation (strengths, weaknesses, tests run, integration) and the recommended way to combine them. |
 | [`datasets/`](datasets/) | Candidate public datasets for the incident reference library, and the assessment of each. |
+| [`../brain/vector-storage/`](../brain/vector-storage/) | Dataset studies on the chosen datasets (NIST smoke alarms, NYC 311 during Hurricane Ida, UTD19 Torino traffic): cleaning, vectors, Qdrant + Neo4j notebooks run in Colab, results and limits. |
 | [`report/`](report/) | Report sources: parts 2 and 5, one paragraph per module (what, how, why, limits), the PDF builder. |
 | [`diagrams/`](diagrams/) | Diagrams for the report. |
 

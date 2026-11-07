@@ -129,7 +129,7 @@ Sections: 0 Setup · 1 Load · 2 Cleaning and charts · 3 Features · 4 Offline 
 
 **The data is not included**: UTD19 is free but only for academic / non-commercial use and you must sign up.
 
-1. Sign up at https://utd19.ethz.ch. The download link comes **by email**. If nothing arrives, check spam, try again, or write to the contact on the site (lukas.ambuehl@ivt.baug.ethz.ch) or the GitHub issues page github.com/ambuehll/UTD19/issues.
+1. Sign up at https://utd19.ethz.ch. The download link comes **by email**. If nothing arrives, check spam, try again, or use the contact form on the site or the GitHub issues page github.com/ambuehll/UTD19/issues.
 2. Download `utd19_u.csv` (about 7 GB, all cities) and `detectors_public.csv`.
 3. On your computer run, from the folder where you want the output:
    ```
