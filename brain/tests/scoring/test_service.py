@@ -6,7 +6,7 @@ import pytest
 
 from src.common.envelope import body_text, seal_multi
 from src.common.models import Proposal
-from tests.scoring.helpers import T0, actions_of, incident, outcome, proposal, reading, send, unit_ack
+from tests.scoring.helpers import T0, actions_of, call, incident, outcome, proposal, reading, send, unit_ack
 
 INC = "brain/internal/incident"
 PROP = "brain/internal/proposal"
@@ -375,6 +375,31 @@ def test_refused_action_without_alternative_is_reported(svc, bus):
     svc.tick()
     assert len(bus.decisions()) == 1
     assert "no new action" in bus.events("decision_skipped")[-1]["summary"]
+
+
+def test_s3_refusal_does_not_exclude_the_valve_and_it_is_retried_with_more_evidence(svc, bus):
+    """B2/B6/B12: the sensor opens the incident 0.2 s before the first call; S3 refuses the valve (one
+    source). That is "not yet", not a broken valve: when the call arrives the valve must be proposed again."""
+    offline(svc)
+    send(svc, INC, incident("inc-1", "flood", "zone-01", severity="medium"))
+    [d1] = bus.decisions()
+    assert ("valve-01", "open") in actions_of(d1)
+    send(svc, OUT, outcome("inc-1", d1["id"], "valve-01", "open", "refused", rule="S3"))
+    svc.tick()
+    track = svc.tracks["inc-1"]
+    assert "valve-01" not in track.failed and track.redecisions == 0     # no loop on the same evidence
+    more = [reading("water-01"), call("call-9", "flood")]
+    send(svc, INC, incident("inc-1", "flood", "zone-01", severity="medium", evidence=more, status="updated"))
+    assert ("valve-01", "open") in actions_of(bus.decisions()[-1])
+
+
+def test_real_failure_still_excludes_the_valve(svc, bus):
+    offline(svc)
+    send(svc, INC, incident("inc-1", "flood", "zone-01"))
+    [d1] = bus.decisions()
+    send(svc, OUT, outcome("inc-1", d1["id"], "valve-01", "open", "failed"))
+    svc.tick()
+    assert "valve-01" in svc.tracks["inc-1"].failed
 
 
 def test_outcome_of_unknown_decision_ignored(svc, bus):

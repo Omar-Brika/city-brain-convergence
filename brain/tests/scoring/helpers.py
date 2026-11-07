@@ -99,10 +99,14 @@ def unit_ack(unit_id: str, status: str, zone: str | None = None) -> dict[str, An
     return msg
 
 
-def outcome(incident_id: str, decision_id: str, target_id: str, action: str, status: str = "failed") -> dict[str, Any]:
-    return {"id": f"out-{next(_ids):06d}", "timestamp": "2026-11-14T10:00:04.000Z",
+def outcome(incident_id: str, decision_id: str, target_id: str, action: str, status: str = "failed",
+            rule: str | None = None) -> dict[str, Any]:
+    msg = {"id": f"out-{next(_ids):06d}", "timestamp": "2026-11-14T10:00:04.000Z",
             "correlation_id": f"twin-{incident_id}", "incident_id": incident_id, "decision_id": decision_id,
             "target_id": target_id, "action": action, "status": status, "detail": "test"}
+    if rule:
+        msg["rule"] = rule
+    return msg
 
 
 def send(svc, topic: str, msg: dict[str, Any], retained: bool = False) -> None:
