@@ -55,7 +55,7 @@ decide; the memory also confirms the fire).
 | What stops ten fake calls? | All calls of a zone count as one source, capped, in detection and in S3 (B7). |
 | How do you connect to another Twin? | Configuration only: broker, keys, topic patterns, field names; the city comes from `twin/meta`. |
 | How fast is it? | 0.07 s from a confirmed alert to signed commands with the rules; the local LLM answers in ~2.2 s. |
-| How do we know it works? | Every Test Book scenario has a log in `logs/` with each expectation's result; 628 automated tests. |
+| How do we know it works? | Every Test Book scenario has a log in `logs/` with each expectation's result; 632 automated tests. |
 
 ## If something fails on stage (2 minutes to recover)
 

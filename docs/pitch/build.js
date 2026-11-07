@@ -26,7 +26,7 @@ const HEX = THEME.colors;
 const TEAM = process.env.TEAM_NAME || "triplet-05";   // the triplet's name (title slide, footer)
 const N = {
   scenarios: process.env.N_SCENARIOS || "15 / 15",
-  tests: process.env.N_TESTS || "628",
+  tests: process.env.N_TESTS || "632",
   latency: process.env.N_LATENCY || "0.07 s",
   llm: process.env.N_LLM || "100 %",
   injections: process.env.N_INJ || "24 / 24",
