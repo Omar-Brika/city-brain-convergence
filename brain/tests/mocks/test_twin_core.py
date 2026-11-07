@@ -491,7 +491,9 @@ def test_no_ack_mode_applies_the_command_but_never_answers():
 
 
 def test_stuck_mode_is_the_no_effect_fault():
-    assert water_after("stuck") == pytest.approx(water_after("ok") + 0.3)       # `done`, but the water does not fall
+    # `done`, but the water does not fall: it keeps rising, while an open valve lowers it by 0.3 m and
+    # holds it at the level it had (the flood stops rising)
+    assert water_after("stuck") >= water_after("ok") + 0.3
     t = Twin(SimConfig(actuator_modes={"valve-01": "stuck"}))
     t.submit(cmd())
     assert [o["result"] for o in run(t, 3) if o.get("result")] == ["done"]

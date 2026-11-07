@@ -147,3 +147,15 @@ def test_busy_unit_is_failed_with_reason(make_loop):
     lp.tick(4)
     failed = [o for o in lp.outcomes() if o["status"] == "failed"]
     assert failed and failed[0]["detail"] == "unit_busy"
+
+
+def test_valve_effect_is_seen_while_the_flood_is_still_rising(make_loop):
+    """B2 timing: the command goes out while the water is still rising (not yet at its ceiling)."""
+    for seed in (1, 2, 3, 7):
+        lp = make_loop(scenario_after_ticks=5, seed=seed)
+        lp.connect()
+        lp.tick(8)
+        lp.decide("valve-01", "open", {"opening": 1.0})
+        lp.tick(40)
+        assert [o["status"] for o in lp.outcomes()] == ["sent", "acknowledged"], seed
+        assert lp.alerts() == [], seed

@@ -34,7 +34,7 @@ display:
   # brain/event names logged but not shown, because the timeline shows the internal message
   # itself in more detail (incident panel, decision with scores)
   suppress_events: [decision, incident_opened, incident_updated, incident_closed]
-  proposal_rows: [rules]    # internal proposals shown as rows (the LLM's own llm_proposal event covers llm)
+  proposal_rows: []         # internal proposals shown as rows: none, the rules_proposal and llm_proposal events cover both
   error_rows_per_s: 5       # brain/error rows shown per second (all are logged and counted)
   verdict_rows: changes     # changes = non-trusted verdicts, changes, and evidence sensors; all = every verdict
   alert_crossing_rows: true # a TWIN row when a reading crosses its sensor's alert threshold (city description)

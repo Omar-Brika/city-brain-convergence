@@ -195,6 +195,7 @@ class Twin:
                                 "reserved_by": None} for u, spec in self.units.items()}
             self._commands: dict[str, dict] = {}
             self._effects: dict[str, dict] = {}
+            self._flood_hold: dict[str, float] = {}    # zone_id -> level the flood stops rising at (valve open)
             self._pending_containment: list[tuple[int, dict]] = []
             self._delayed: list[tuple[int, dict]] = []
             self._history: dict[str, dict] = {}
@@ -572,7 +573,15 @@ class Twin:
                 return self._make_call(zone, category)
 
             if scenario == "flood":
-                v["water_level"] = min(2.5, 1.4 + age * .15)
+                level = min(2.5, 1.4 + age * .15)
+                if any(e["action"] == "open" and e["target"] in self.actuators
+                       and zone in self.actuators[e["target"]]["controls"] for e in self._effects.values()):
+                    # an open valve holds the flood at the level of the previous tick (the offset applied
+                    # below then lowers it): the level no longer keeps rising past the valve's effect
+                    level = min(level, self._flood_hold.setdefault(zone, min(2.5, 1.4 + (age - 1) * .15)))
+                else:
+                    self._flood_hold.pop(zone, None)
+                v["water_level"] = level
                 if age >= 3 and (age - 3) % 5 == 0:     # residents report it, every 5 ticks from tick 3
                     self._calls.append(call("flood"))
             elif scenario == "fire":

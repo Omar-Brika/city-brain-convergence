@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import http.client
+import re
 import json
 import threading
 import time
@@ -93,8 +94,23 @@ def test_page_loads_and_is_self_contained(server):
     status, ctype, body = get(server, "/")
     assert status == 200 and ctype.startswith("text/html")
     text = body.decode()
-    assert "<title>City Brain Timeline</title>" in text and "EventSource" in text
+    assert "<title>City Brain Timeline</title>" in text
     assert "http://" not in text and "https://" not in text   # no external asset
+    assets = re.findall(r'(?:src|href)="(/static/[^"]+)"', text)
+    assert assets, "the page must load its script and styles from /static/"
+    for path in assets:                                       # every asset is served locally, with a type
+        status, ctype, data = get(server, path)
+        assert status == 200 and data and ctype
+        if path.endswith(".css"):                             # fonts are bundled, not fetched from a CDN
+            assert b"http://" not in data and b"https://" not in data
+        if path.endswith(".js"):
+            assert b"EventSource" in data                     # the live connection
+
+
+def test_static_refuses_path_traversal(server):
+    assert get(server, "/static/../server.py")[0] == 404
+    assert get(server, "/static/%2e%2e/server.py")[0] == 404
+    assert get(server, "/static/missing.js")[0] == 404
 
 
 def test_api_recent_and_status(h, server):
