@@ -7,7 +7,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['"Atkinson Hyperlegible Next Variable"', "system-ui", "sans-serif"],
+        sans: ['"Inter Variable"', "system-ui", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))", input: "hsl(var(--input))", ring: "hsl(var(--ring))",

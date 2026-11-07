@@ -16,7 +16,7 @@ function LayerStatus({ name, status, reason }: { name: string; status: string; r
     <Tooltip>
       <TooltipTrigger asChild>
         <div className="flex items-center gap-2">
-          <span className={cn("h-2.5 w-2.5 rounded-full", dot)} />
+          <span className={cn("h-2 w-2 rounded-full", dot)} />
           <span className="font-semibold">{name}</span>
           {status !== "online" && <span className={cn("text-sm", word)}>{status}</span>}
         </div>
@@ -35,8 +35,8 @@ export function Header({ state, connected, present, onPresent }: {
   const run = state?.run;
   const secs = run?.started ? Math.max(0, Math.round((now.getTime() - new Date(run.started).getTime()) / 1000)) : 0;
   return (
-    <header className="flex items-center gap-8 px-6 py-3">
-      <h1 className="text-xl font-extrabold tracking-tight">City Brain</h1>
+    <header className="flex items-center gap-6 border-b px-5 py-2">
+      <h1 className="text-base font-semibold tracking-tight">City Brain</h1>
       <div className="flex items-center gap-6">
         {LAYER_NAMES.map(([id, name]) => (
           <LayerStatus key={id} name={name} status={layers[id]?.status || "unknown"} reason={layers[id]?.reason} />
@@ -53,7 +53,7 @@ export function Header({ state, connected, present, onPresent }: {
       <Button variant="ghost" size="sm" onClick={onPresent} aria-pressed={present} title="Presentation mode (key P)">
         <Presentation /> {present ? "Exit presentation" : "Present"}
       </Button>
-      <div className="min-w-[5.5ch] text-right text-2xl font-semibold">{fmtTime(now)[0]}</div>
+      <div className="min-w-[5.5ch] text-right text-lg font-medium">{fmtTime(now)[0]}</div>
     </header>
   );
 }

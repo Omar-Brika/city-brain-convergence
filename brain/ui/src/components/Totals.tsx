@@ -5,8 +5,8 @@ function Total({ value, label, tone }: { value: number; label: string; tone?: "b
   const colour = value === 0 ? "text-muted-foreground/60" : tone === "bad" ? "text-destructive" : tone === "warn" ? "text-warn" : tone === "ok" ? "text-ok" : "text-foreground";
   return (
     <div className="flex items-baseline gap-2">
-      <dd className={cn("text-lg font-semibold", colour)}>{value}</dd>
-      <dt className="text-sm text-muted-foreground">{label}</dt>
+      <dd className={cn("text-base font-semibold", colour)}>{value}</dd>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
     </div>
   );
 }
@@ -14,7 +14,7 @@ function Total({ value, label, tone }: { value: number; label: string; tone?: "b
 export function Totals({ state }: { state: State | null }) {
   const c = state?.counters || {};
   return (
-    <footer className="border-t px-6 py-2">
+    <footer className="border-t px-5 py-1.5">
       <dl className="flex flex-wrap items-center gap-x-9 gap-y-1">
         <Total value={c.msgs_per_s ?? 0} label="messages per second" />
         <Total value={c.sent ?? 0} label="commands sent" />

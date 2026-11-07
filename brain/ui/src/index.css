@@ -1,4 +1,4 @@
-@import "@fontsource-variable/atkinson-hyperlegible-next";
+@import "@fontsource-variable/inter";
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -33,11 +33,11 @@
     --ok: 149 44% 58%;
     --warn: 38 82% 58%;
   }
-  html.present { font-size: clamp(15px, 1.25vw, 28px); }
+  html.present { font-size: clamp(15px, 1.2vw, 26px); }
   * { @apply border-border; }
-  html { font-size: clamp(13px, 1.02vw, 24px); }
+  html { font-size: clamp(12px, .78vw, 20px); }
   body { @apply bg-background text-foreground font-sans antialiased; margin: 0; height: 100vh; overflow: hidden;
-    font-variant-numeric: tabular-nums; }
+    font-variant-numeric: tabular-nums; font-feature-settings: "cv11", "ss03"; letter-spacing: -.003em; }
 }
 
 /* city map (drawn by src/map/city.ts as SVG): the same animations as before ---------------------- */
@@ -56,10 +56,10 @@
 .m-act.active circle.bg { filter: drop-shadow(0 0 4px currentColor); }
 .m-act.spin .glyph { animation: spin 2.4s linear infinite; transform-box: fill-box; transform-origin: center; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.m-tag { font: 700 12.5px "Atkinson Hyperlegible Next Variable", sans-serif; letter-spacing: .05em; }
+.m-tag { font: 700 12.5px "Inter Variable", sans-serif; letter-spacing: .05em; }
 .m-unit { transition: transform 2.8s cubic-bezier(.5, 0, .3, 1); }
 .m-unit.nomove { transition: none; }
-.m-unit text { font: 800 13px "Atkinson Hyperlegible Next Variable", sans-serif; pointer-events: none; }
+.m-unit text { font: 800 13px "Inter Variable", sans-serif; pointer-events: none; }
 .m-ring { fill: none; stroke-width: 2.5; }
 .m-ring.en_route { stroke: hsl(var(--warn)); stroke-dasharray: 5 4; animation: spin 1.6s linear infinite; transform-box: fill-box; transform-origin: center; }
 .m-ring.on_scene { stroke: hsl(var(--destructive)); animation: pulse 1s infinite; }
@@ -70,11 +70,11 @@
 .m-call { animation: ring .5s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: center; }
 @keyframes ring { from { transform: rotate(-14deg); } to { transform: rotate(14deg); } }
 .pulse { animation: pulse 1.2s infinite; } @keyframes pulse { 50% { stroke-opacity: .25; } }
-.m-legend { font: 500 12px "Atkinson Hyperlegible Next Variable", sans-serif; fill: hsl(var(--muted-foreground)); }
-.zone-name { font: 700 21px "Atkinson Hyperlegible Next Variable", sans-serif; fill: hsl(var(--foreground)); }
-.zone-id { font: 500 12px "Atkinson Hyperlegible Next Variable", sans-serif; fill: hsl(var(--muted-foreground)); opacity: .7; }
-.zone-val { font: 700 19px "Atkinson Hyperlegible Next Variable", sans-serif; fill: hsl(var(--foreground)); }
-.zone-badge { font: 700 14px "Atkinson Hyperlegible Next Variable", sans-serif; letter-spacing: .08em; }
+.m-legend { font: 500 12px "Inter Variable", sans-serif; fill: hsl(var(--muted-foreground)); }
+.zone-name { font: 650 19px "Inter Variable", sans-serif; fill: hsl(var(--foreground)); }
+.zone-id { font: 500 12px "Inter Variable", sans-serif; fill: hsl(var(--muted-foreground)); opacity: .7; }
+.zone-val { font: 600 17px "Inter Variable", sans-serif; fill: hsl(var(--foreground)); }
+.zone-badge { font: 650 13px "Inter Variable", sans-serif; letter-spacing: .08em; }
 
 @keyframes row-in { from { background-color: hsl(var(--foreground) / .1); } to { background-color: transparent; } }
 .row-new { animation: row-in 1.2s ease-out; }
