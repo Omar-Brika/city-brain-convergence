@@ -16,7 +16,7 @@ interface Props {
 function Step({ time, layer, text, level }: { time: string; layer?: string; text: string; level?: string }) {
   return (
     <div className="grid grid-cols-[6.5rem_6rem_1fr] gap-3 border-b border-dashed py-2 text-base last:border-0">
-      <span className="font-mono text-sm text-muted-foreground">{time}</span>
+      <span className="text-sm text-muted-foreground">{time}</span>
       <span className={cn("text-xs font-semibold tracking-wide", layer && layerClass[layer])}>{layer}</span>
       <span className={cn(level === "error" && "text-red-200", level === "warn" && "text-warn")}>{text}</span>
     </div>
@@ -45,7 +45,7 @@ export function ChainDialog({ cid, onClose, loadChain, localChain }: Props) {
     <Dialog open={!!cid} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-h-[86vh] grid-rows-[auto_1fr]">
         <DialogHeader>
-          <DialogTitle>Cause → effect chain <code className="ml-2 font-mono text-sm font-normal text-twin">{cid}</code></DialogTitle>
+          <DialogTitle>Cause → effect chain <code className="ml-2 text-sm font-normal text-twin">{cid}</code></DialogTitle>
           <DialogDescription>Every step that shares this correlation id, in order.</DialogDescription>
         </DialogHeader>
         <ScrollArea className="max-h-[66vh] pr-3">

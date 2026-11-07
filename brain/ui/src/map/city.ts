@@ -11,13 +11,13 @@ const SHORT = {water_level: "water", air_quality: "air", traffic_speed: "speed",
 // --- city map ----------------------------------------------------------------------------
 // Drawn once per city description (zones, roads, devices), then updated in place every state
 // push, so the animations (water, smoke, traffic, units driving) never restart.
-const CW = 360, CH = 172, GAP = 62, MG = 18, SEA = 78, LEG = 30;
-const TINT = {port: "#12202e", commercial: "#1b1e27", medical: "#14261f", industrial: "#251f14", residential: "#191d25"};
+const CW = 360, CH = 172, GAP = 62, MG = 18, SEA = 78, LEG = 6;
+const TINT = {port: "#12202e", commercial: "#151d27", medical: "#14261f", industrial: "#251f14", residential: "#141c24"};
 const UNIT_LOOK = {ambulance: ["#f8fafc", "#c4443d", "A"], fire_truck: ["#e0645c", "#fff", "F"],
   police: ["#6b95e0", "#fff", "P"], rescue: ["#d9803a", "#1a0d00", "R"]};
 const GLYPH = {
   valve: '<path class="glyph" d="M-8,-6 L8,6 L8,-6 L-8,6 Z" fill="currentColor"/>',
-  traffic_signal: '<g class="glyph"><rect x="-4.5" y="-10" width="9" height="20" rx="2.5" fill="#10131a" stroke="currentColor" stroke-width="1.5"/>' +
+  traffic_signal: '<g class="glyph"><rect x="-4.5" y="-10" width="9" height="20" rx="2.5" fill="#0c1218" stroke="currentColor" stroke-width="1.5"/>' +
     '<circle cy="-5" r="2.2" fill="currentColor"/><circle r="2.2" fill="currentColor" opacity=".55"/><circle cy="5" r="2.2" fill="currentColor" opacity=".3"/></g>',
   power_grid: '<path class="glyph" d="M2,-11 L-6,2 L-1,2 L-3,11 L6,-3 L1,-3 Z" fill="currentColor"/>',
 };
@@ -63,11 +63,11 @@ function buildMap(st) {
   let s = `<svg viewBox="0 0 ${vw} ${vh}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="live city map"><defs>`;
   for (const z of zones) s += `<clipPath id="mc-${z.zone_id}"><rect x="${box[z.zone_id].x}" y="${box[z.zone_id].y}" width="${CW}" height="${CH}" rx="8"/></clipPath>`;
   s += `<pattern id="mwv" width="40" height="12" patternUnits="userSpaceOnUse"><path d="M0,6 Q10,0 20,6 T40,6" fill="none" stroke="#8cc4e3" stroke-width="1.6" opacity=".55"/></pattern></defs>`;
-  s += `<rect id="m-frame" x="1" y="1" width="${vw - 2}" height="${vh - 2}" rx="8" fill="#0f1217" stroke="#222831" stroke-width="1"/>`;
+  s += `<rect id="m-frame" x="1" y="1" width="${vw - 2}" height="${vh - 2}" rx="8" fill="#0b1016" stroke="#1f2933" stroke-width="1"/>`;
   if (sea) {
     const r = {west: [0, 0, SEA + MG / 2, vh - LEG], east: [vw - SEA - MG / 2, 0, SEA + MG / 2, vh - LEG],
       north: [0, 0, vw, SEA + MG / 2], south: [0, vh - LEG - SEA - MG / 2, vw, SEA + MG / 2]}[sea];
-    if (r) s += `<g><rect x="${r[0]}" y="${r[1]}" width="${r[2]}" height="${r[3]}" fill="#14304a"/>` +
+    if (r) s += `<g><rect x="${r[0]}" y="${r[1]}" width="${r[2]}" height="${r[3]}" fill="#13293b"/>` +
       `<rect class="m-sea" x="${r[0]}" y="${r[1]}" width="${r[2] + 80}" height="${r[3]}" fill="url(#mwv)" opacity=".5"/>` +
       `<text x="${r[0] + r[2] / 2}" y="${r[1] + r[3] / 2}" text-anchor="middle" class="m-legend" fill="#8cc4e3" transform="rotate(${sea === "west" || sea === "east" ? -90 : 0} ${r[0] + r[2] / 2} ${r[1] + r[3] / 2})" style="letter-spacing:.5em">SEA</text></g>`;
   }
@@ -88,7 +88,7 @@ function buildMap(st) {
   const apos = {};
   for (const z of zones) {
     const {x, y} = box[z.zone_id], id = z.zone_id;
-    s += `<g><rect x="${x}" y="${y}" width="${CW}" height="${CH}" rx="8" fill="${TINT[z.type] || "#171b22"}"/>`;
+    s += `<g><rect x="${x}" y="${y}" width="${CW}" height="${CH}" rx="8" fill="${TINT[z.type] || "#141c24"}"/>`;
     s += `<g clip-path="url(#mc-${id})"><g id="mw-${id}" class="m-water" style="transform:scaleY(0)"><rect x="${x}" y="${y}" width="${CW}" height="${CH}" fill="#4f9fd0" opacity=".38"/>` +
       `<rect class="m-wave" x="${x}" y="${y}" width="${CW + 80}" height="12" fill="url(#mwv)"/></g>` +
       `<g id="ms-${id}" class="m-smoke" opacity="0">` +
@@ -115,7 +115,7 @@ function buildMap(st) {
       const ax = x + 26 + k * 44, ay = y + CH - 22;
       apos[aid] = [ax, ay];
       s += `<g id="mx-${aid}" class="m-act" transform="translate(${ax} ${ay})" style="color:#64748b"><title>${esc(aid)}</title>` +
-        `<circle class="bg" r="16" fill="#10131a" stroke="currentColor" stroke-width="2"/>${GLYPH[v.type] || '<circle class="glyph" r="5" fill="currentColor"/>'}` +
+        `<circle class="bg" r="16" fill="#0c1218" stroke="currentColor" stroke-width="2"/>${GLYPH[v.type] || '<circle class="glyph" r="5" fill="currentColor"/>'}` +
         `<path id="mq-${aid}" d="M-11,-11 L11,11 M11,-11 L-11,11" stroke="#e0645c" stroke-width="3.5" opacity="0"/></g>` +
         `<text id="mt-${aid}" x="${ax}" y="${ay - (k % 2 ? 36 : 23)}" text-anchor="middle" class="m-tag" opacity="0"></text>`;
     });
@@ -123,18 +123,17 @@ function buildMap(st) {
   }
   // command beams, the Brain, units on top
   s += `<g id="m-beams"></g>`;
-  s += `<g transform="translate(${hub[0]} ${hub[1]})"><circle class="m-hub-ring" r="40"/><circle r="40" fill="#12161d" stroke="#7fa6e8" stroke-width="2.5"/>` +
+  s += `<g transform="translate(${hub[0]} ${hub[1]})"><circle class="m-hub-ring" r="40"/><circle r="40" fill="#0f151c" stroke="#7fa6e8" stroke-width="2.5"/>` +
     `<text y="-3" text-anchor="middle" style="font:700 15px Inter,sans-serif;letter-spacing:.12em" fill="#e7eaee">CITY</text>` +
     `<text y="15" text-anchor="middle" style="font:700 15px Inter,sans-serif;letter-spacing:.12em" fill="#7fa6e8">BRAIN</text></g>`;
   s += `<g id="m-units">`;
   for (const [u, info] of Object.entries(st.units || {})) {
-    const [bg, fg, ch] = UNIT_LOOK[info.type] || ["#94a3b8", "#10131a", (info.type || "?")[0].toUpperCase()];
+    const [bg, fg, ch] = UNIT_LOOK[info.type] || ["#94a3b8", "#0c1218", (info.type || "?")[0].toUpperCase()];
     s += `<g id="mu-${u}" class="m-unit nomove"><title>${esc(u)}</title><circle id="mur-${u}" class="m-ring" r="19"/>` +
-      `<circle r="14" fill="${bg}" stroke="#10131a" stroke-width="2"/><text y="4.5" text-anchor="middle" fill="${fg}">${esc(ch)}</text></g>`;
+      `<circle r="14" fill="${bg}" stroke="#0c1218" stroke-width="2"/><text y="4.5" text-anchor="middle" fill="${fg}">${esc(ch)}</text></g>`;
   }
   s += `</g>`;
-  s += `<text x="${MG}" y="${vh - 12}" class="m-legend">water and smoke rise with the readings the Brain believes · road colour = traffic · ` +
-    `dots = sensors (green trusted, amber suspicious, red rejected, grey unchecked) · A F P R = units · beams = Brain commands</text></svg>`;
+  s += `</svg>`;
   MAPEL.innerHTML = s;
   GEO = {box, hub, apos, pairs};
 }
@@ -258,7 +257,7 @@ function updateMap(st) {
       `<circle cx="${to[0]}" cy="${to[1]}" r="22" fill="none" stroke="${colour}" stroke-width="3" opacity="${op.toFixed(2)}"/>`;
   }
   $("m-beams").innerHTML = beams;
-  $("m-frame").setAttribute("stroke", st.safe_mode ? "#d6a24a" : "#222831");
+  $("m-frame").setAttribute("stroke", st.safe_mode ? "#d6a24a" : "#1f2933");
   $("m-frame").setAttribute("stroke-width", st.safe_mode ? 2 : 1);
 }
 function level2(st, z) {                // traffic: density over its alert threshold (1 = at the threshold)

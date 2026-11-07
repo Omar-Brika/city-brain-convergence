@@ -7,8 +7,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['"Inter Variable"', "Inter", "system-ui", "sans-serif"],
-        mono: ['"JetBrains Mono Variable"', "ui-monospace", "monospace"],
+        sans: ['"Atkinson Hyperlegible Next Variable"', "system-ui", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))", input: "hsl(var(--input))", ring: "hsl(var(--ring))",
@@ -21,7 +20,7 @@ export default {
         card: { DEFAULT: "hsl(var(--card))", foreground: "hsl(var(--card-foreground))" },
         popover: { DEFAULT: "hsl(var(--popover))", foreground: "hsl(var(--popover-foreground))" },
         twin: "hsl(var(--twin))", guardian: "hsl(var(--guardian))", brain: "hsl(var(--brain))", llm: "hsl(var(--llm))",
-        ok: "hsl(var(--ok))", warn: "hsl(var(--warn))",
+        ok: "hsl(var(--ok))", warn: "hsl(var(--warn))", bad: "hsl(var(--destructive))",
       },
       borderRadius: { lg: "var(--radius)", md: "calc(var(--radius) - 2px)", sm: "calc(var(--radius) - 4px)" },
     },
