@@ -6,12 +6,12 @@
 <title>City Brain Timeline</title>
 <style>
 :root {
-  --bg: #070b16; --panel: #0e1526; --panel2: #131c31; --line: #23314f;
-  --text: #e8eef9; --muted: #8b99b5; --dim: #5b6884;
-  --twin: #22d3ee; --guardian: #c084fc; --brain: #60a5fa; --llm: #f472b6;
-  --ok: #34d399; --warn: #fbbf24; --err: #f87171; --unknown: #64748b;
-  --mono: "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
-  --sans: "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+  --bg: #0c0e11; --panel: #13161b; --panel2: #191d23; --line: #262b33;
+  --text: #e7eaee; --muted: #9099a6; --dim: #626b78;
+  --twin: #67b7c4; --guardian: #a99bd1; --brain: #7fa6e8; --llm: #d19ab8;
+  --ok: #5fbf8a; --warn: #d6a24a; --err: #e0645c; --unknown: #5f6875;
+  --mono: "JetBrains Mono", "IBM Plex Mono", "DejaVu Sans Mono", Consolas, monospace;
+  --sans: Inter, "IBM Plex Sans", "Ubuntu", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 * { box-sizing: border-box; }
 html { font-size: clamp(13px, 1.02vw, 24px); }
@@ -78,12 +78,12 @@ main { display: grid; grid-template-columns: minmax(0, 1.72fr) minmax(0, 1fr); g
 .row .sig { width: 1.1rem; opacity: .75; }
 .L-TWIN .tag { color: var(--twin); } .L-GUARDIAN .tag { color: var(--guardian); }
 .L-BRAIN .tag { color: var(--brain); } .L-LLM .tag { color: var(--llm); }
-.lv-error { background: rgba(248, 113, 113, .15); } .lv-error .text { color: #fecaca; font-weight: 600; }
-.lv-warn { background: rgba(251, 191, 36, .10); } .lv-warn .text { color: #fde68a; }
-.lv-ok .text { color: #bbf7d0; }
+.lv-error { background: rgba(224, 100, 92, .09); } .lv-error .text { color: #f0b4af; font-weight: 600; }
+.lv-warn { background: transparent; } .lv-warn .text { color: #e8c987; }
+.lv-ok .text { color: #e7eaee; }
 .row.new { animation: flash 1.6s ease-out; }
 @keyframes flash { from { box-shadow: inset 0 0 0 999px rgba(255, 255, 255, .12); } to { box-shadow: none; } }
-#rows.hl .row { opacity: .33; } #rows.hl .row.hl { opacity: 1; background-color: rgba(96, 165, 250, .14); }
+#rows.hl .row { opacity: .33; } #rows.hl .row.hl { opacity: 1; background-color: rgba(127, 166, 232, .12); }
 .hidden-layer { display: none !important; }
 .newbadge { position: sticky; bottom: .3rem; margin: 0 auto; width: max-content; background: var(--warn);
   color: #1a1200; padding: .2rem .8rem; border-radius: 999px; font-weight: 700; display: none; font-size: .85rem; }
@@ -177,18 +177,60 @@ pre { white-space: pre-wrap; font-size: .8rem; color: var(--muted); background: 
   body { overflow: auto; height: auto; } main { grid-template-columns: 1fr; } .counters { grid-template-columns: repeat(4, 1fr); }
   #rows { max-height: 70vh; }
 }
+
+/* ---- calmer visual layer (overrides) ------------------------------------------------- */
+body { font-feature-settings: "tnum" 1, "cv11" 1; -webkit-font-smoothing: antialiased; }
+header { background: var(--bg); padding: .7rem 1.1rem; gap: 1.4rem; }
+.brand b { font-size: 1.3rem; font-weight: 650; letter-spacing: -.01em; }
+.brand span { text-transform: none; letter-spacing: 0; font-size: .78rem; }
+.pills { gap: 1.1rem; }
+.pill { background: none; border: none; padding: 0; gap: .45rem; font-weight: 600; font-size: .95rem; }
+.pill .dot { width: .55rem; height: .55rem; }
+.pill .st { text-transform: none; font-size: .82rem; font-weight: 500; }
+.pill.online .dot { box-shadow: none; }
+.pill.offline { border: none; }
+.safe { animation: none; border-radius: .3rem; letter-spacing: .02em; font-weight: 700; }
+.clock { font-weight: 500; }
+.counters { display: flex; gap: 0; padding: 0 1.1rem; }
+.tile { background: none; border: none; border-right: 1px solid var(--line); border-radius: 0; flex: 1;
+  padding: .5rem .9rem; } .tile:first-child { padding-left: 0; } .tile:last-child { border-right: none; }
+.tile b { font-size: 1.45rem; font-weight: 500; color: var(--dim); }
+.tile span { text-transform: none; letter-spacing: 0; font-size: .85rem; }
+.tile:nth-child(-n+2) b, .tile:last-child b { color: var(--text); }
+.tile.bad b { color: var(--err); } .tile.good b { color: var(--ok); } .tile.warn b { color: var(--warn); }
+.card { border-radius: .4rem; }
+.card h2 { text-transform: none; letter-spacing: 0; font-size: .92rem; font-weight: 600; color: var(--text);
+  padding: .6rem .9rem; }
+.card h2 .hint { font-weight: 400; color: var(--dim); }
+.live { font-size: .75rem; letter-spacing: .04em; }
+.filters button { border-color: var(--line); border-radius: 999px; font-weight: 600; letter-spacing: .02em; padding: .15rem .6rem; }
+.viewbtn { text-transform: none; letter-spacing: 0; font-weight: 600; background: none; }
+.row { border-bottom: 1px solid var(--line); }
+.row .tag { border: none; background: none; text-align: left; font-size: .8rem; letter-spacing: .06em; padding: .1rem 0; }
+.lv-error .text { font-weight: 500; } .lv-warn .text { font-weight: 450; }
+.lv-ok .text { color: var(--text); }
+.row.new { animation-duration: 1.2s; }
+.inc { background: var(--panel2); border-radius: .35rem; }
+.inc .type { letter-spacing: .03em; }
+.chip { background: var(--panel2); border-color: var(--line); }
+.bar-fg { background: var(--brain); }
+.score .b { background: var(--line); }
+.origin { letter-spacing: .04em; }
+.empty { font-size: .95rem; }
+#modal { background: #000b; }
+.m-legend { fill: var(--dim); }
 </style>
 </head>
 <body>
 <header>
-  <div class="brand"><b>CITY BRAIN</b><span>live timeline &middot; twin &rarr; guardian &rarr; brain</span></div>
+  <div class="brand"><b>City Brain</b><span>Live timeline &middot; Twin &rarr; Guardian &rarr; Brain</span></div>
   <div class="pills">
     <div class="pill" id="p-twin"><span class="dot"></span>TWIN <span class="st">-</span></div>
     <div class="pill" id="p-guardian"><span class="dot"></span>GUARDIAN <span class="st">-</span></div>
     <div class="pill" id="p-brain"><span class="dot"></span>BRAIN <span class="st">-</span></div>
     <div class="pill" id="p-llm"><span class="dot"></span>LLM <span class="st">-</span></div>
   </div>
-  <div class="safe" id="safe">SAFE MODE</div>
+  <div class="safe" id="safe">Safe mode</div>
   <div class="spacer"></div>
   <button class="viewbtn" id="viewbtn" title="switch the focus between the city map and the timeline (key M)">VIEW &#8644; M</button>
   <div class="run"><div class="scen" id="scen">no scenario run</div><div class="file" id="logfile"></div>
@@ -229,8 +271,8 @@ const rowsEl = $("rows");
 let lastSeq = 0, paused = false, unseen = 0, es = null;
 const hidden = new Set();
 const all = [];                       // rows in memory (for the chain view)
-const LOCK = '<svg viewBox="0 0 16 16" width="15" height="15"><rect x="3" y="7" width="10" height="8" rx="1.5" fill="#34d399"/><path d="M5 7V5a3 3 0 0 1 6 0v2" stroke="#34d399" stroke-width="1.8" fill="none"/></svg>';
-const BROKEN = '<svg viewBox="0 0 16 16" width="15" height="15"><rect x="3" y="7" width="10" height="8" rx="1.5" fill="#f87171"/><path d="M5 7V5a3 3 0 0 1 5.6-1.5" stroke="#f87171" stroke-width="1.8" fill="none"/></svg>';
+const LOCK = '<svg viewBox="0 0 16 16" width="15" height="15"><rect x="3" y="7" width="10" height="8" rx="1.5" fill="#5fbf8a"/><path d="M5 7V5a3 3 0 0 1 6 0v2" stroke="#5fbf8a" stroke-width="1.8" fill="none"/></svg>';
+const BROKEN = '<svg viewBox="0 0 16 16" width="15" height="15"><rect x="3" y="7" width="10" height="8" rx="1.5" fill="#e0645c"/><path d="M5 7V5a3 3 0 0 1 5.6-1.5" stroke="#e0645c" stroke-width="1.8" fill="none"/></svg>';
 
 function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 function pad(n, w) { return String(n).padStart(w || 2, "0"); }
@@ -340,12 +382,12 @@ const SHORT = {water_level: "water", air_quality: "air", traffic_speed: "speed",
 // Drawn once per city description (zones, roads, devices), then updated in place every state
 // push, so the animations (water, smoke, traffic, units driving) never restart.
 const CW = 360, CH = 172, GAP = 62, MG = 18, SEA = 78, LEG = 30;
-const TINT = {port: "#0f2236", commercial: "#191c33", medical: "#11281f", industrial: "#262016", residential: "#1a2032"};
-const UNIT_LOOK = {ambulance: ["#f8fafc", "#dc2626", "A"], fire_truck: ["#ef4444", "#fff", "F"],
-  police: ["#3b82f6", "#fff", "P"], rescue: ["#f97316", "#1a0d00", "R"]};
+const TINT = {port: "#12202e", commercial: "#1b1e27", medical: "#14261f", industrial: "#251f14", residential: "#191d25"};
+const UNIT_LOOK = {ambulance: ["#f8fafc", "#c4443d", "A"], fire_truck: ["#e0645c", "#fff", "F"],
+  police: ["#6b95e0", "#fff", "P"], rescue: ["#d9803a", "#1a0d00", "R"]};
 const GLYPH = {
   valve: '<path class="glyph" d="M-8,-6 L8,6 L8,-6 L-8,6 Z" fill="currentColor"/>',
-  traffic_signal: '<g class="glyph"><rect x="-4.5" y="-10" width="9" height="20" rx="2.5" fill="#0b1222" stroke="currentColor" stroke-width="1.5"/>' +
+  traffic_signal: '<g class="glyph"><rect x="-4.5" y="-10" width="9" height="20" rx="2.5" fill="#10131a" stroke="currentColor" stroke-width="1.5"/>' +
     '<circle cy="-5" r="2.2" fill="currentColor"/><circle r="2.2" fill="currentColor" opacity=".55"/><circle cy="5" r="2.2" fill="currentColor" opacity=".3"/></g>',
   power_grid: '<path class="glyph" d="M2,-11 L-6,2 L-1,2 L-3,11 L6,-3 L1,-3 Z" fill="currentColor"/>',
 };
@@ -390,14 +432,14 @@ function buildMap(st) {
   }
   let s = `<svg viewBox="0 0 ${vw} ${vh}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="live city map"><defs>`;
   for (const z of zones) s += `<clipPath id="mc-${z.zone_id}"><rect x="${box[z.zone_id].x}" y="${box[z.zone_id].y}" width="${CW}" height="${CH}" rx="12"/></clipPath>`;
-  s += `<pattern id="mwv" width="40" height="12" patternUnits="userSpaceOnUse"><path d="M0,6 Q10,0 20,6 T40,6" fill="none" stroke="#7dd3fc" stroke-width="1.6" opacity=".55"/></pattern></defs>`;
-  s += `<rect id="m-frame" x="1" y="1" width="${vw - 2}" height="${vh - 2}" rx="14" fill="#0a1120" stroke="#1c2a45" stroke-width="2"/>`;
+  s += `<pattern id="mwv" width="40" height="12" patternUnits="userSpaceOnUse"><path d="M0,6 Q10,0 20,6 T40,6" fill="none" stroke="#8cc4e3" stroke-width="1.6" opacity=".55"/></pattern></defs>`;
+  s += `<rect id="m-frame" x="1" y="1" width="${vw - 2}" height="${vh - 2}" rx="14" fill="#0f1217" stroke="#222831" stroke-width="2"/>`;
   if (sea) {
     const r = {west: [0, 0, SEA + MG / 2, vh - LEG], east: [vw - SEA - MG / 2, 0, SEA + MG / 2, vh - LEG],
       north: [0, 0, vw, SEA + MG / 2], south: [0, vh - LEG - SEA - MG / 2, vw, SEA + MG / 2]}[sea];
-    if (r) s += `<g><rect x="${r[0]}" y="${r[1]}" width="${r[2]}" height="${r[3]}" fill="#0c2a4a"/>` +
+    if (r) s += `<g><rect x="${r[0]}" y="${r[1]}" width="${r[2]}" height="${r[3]}" fill="#14304a"/>` +
       `<rect class="m-sea" x="${r[0]}" y="${r[1]}" width="${r[2] + 80}" height="${r[3]}" fill="url(#mwv)" opacity=".5"/>` +
-      `<text x="${r[0] + r[2] / 2}" y="${r[1] + r[3] / 2}" text-anchor="middle" class="m-legend" fill="#7dd3fc" transform="rotate(${sea === "west" || sea === "east" ? -90 : 0} ${r[0] + r[2] / 2} ${r[1] + r[3] / 2})" style="letter-spacing:.5em">SEA</text></g>`;
+      `<text x="${r[0] + r[2] / 2}" y="${r[1] + r[3] / 2}" text-anchor="middle" class="m-legend" fill="#8cc4e3" transform="rotate(${sea === "west" || sea === "east" ? -90 : 0} ${r[0] + r[2] / 2} ${r[1] + r[3] / 2})" style="letter-spacing:.5em">SEA</text></g>`;
   }
   // roads between adjacent zones
   const pairs = [];
@@ -405,10 +447,10 @@ function buildMap(st) {
   s += "<g>";
   for (const [a, b] of pairs) {
     const [ax, ay] = centre(a), [bx, by] = centre(b);
-    s += `<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="#263248" stroke-width="30" stroke-linecap="round"/>` +
-      `<line id="mr-${a}-${b}" class="m-road" x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="#34d399" stroke-width="5" stroke-linecap="round" opacity=".85"/>` +
+    s += `<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="#2c333e" stroke-width="30" stroke-linecap="round"/>` +
+      `<line id="mr-${a}-${b}" class="m-road" x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="#5fbf8a" stroke-width="5" stroke-linecap="round" opacity=".85"/>` +
       `<line class="m-flow" x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="#e2e8f0" stroke-width="3" stroke-linecap="round" opacity=".45"/>` +
-      `<line id="mk-${a}-${b}" class="m-corr" x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="#4ade80" stroke-width="12" opacity="0"/>`;
+      `<line id="mk-${a}-${b}" class="m-corr" x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="#6fcf97" stroke-width="12" opacity="0"/>`;
   }
   s += "</g>";
   // zones
@@ -416,22 +458,22 @@ function buildMap(st) {
   const apos = {};
   for (const z of zones) {
     const {x, y} = box[z.zone_id], id = z.zone_id;
-    s += `<g><rect x="${x}" y="${y}" width="${CW}" height="${CH}" rx="12" fill="${TINT[z.type] || "#141d33"}"/>`;
-    s += `<g clip-path="url(#mc-${id})"><g id="mw-${id}" class="m-water" style="transform:scaleY(0)"><rect x="${x}" y="${y}" width="${CW}" height="${CH}" fill="#0ea5e9" opacity=".38"/>` +
+    s += `<g><rect x="${x}" y="${y}" width="${CW}" height="${CH}" rx="12" fill="${TINT[z.type] || "#171b22"}"/>`;
+    s += `<g clip-path="url(#mc-${id})"><g id="mw-${id}" class="m-water" style="transform:scaleY(0)"><rect x="${x}" y="${y}" width="${CW}" height="${CH}" fill="#4f9fd0" opacity=".38"/>` +
       `<rect class="m-wave" x="${x}" y="${y}" width="${CW + 80}" height="12" fill="url(#mwv)"/></g>` +
       `<g id="ms-${id}" class="m-smoke" opacity="0">` +
       [0, 1, 2, 3].map(k => `<circle class="m-puff" cx="${x + 70 + k * 70}" cy="${y + 104}" r="24" fill="#9ca3af" style="animation-delay:${-k * .85}s"/>`).join("") + `</g>` +
       `<rect id="md-${id}" class="m-dim" x="${x}" y="${y}" width="${CW}" height="${CH}" fill="#000" opacity="0"/></g>`;
-    s += `<rect id="mo-${id}" x="${x + 1}" y="${y + 1}" width="${CW - 2}" height="${CH - 2}" rx="11" fill="none" stroke="#2a3b5c" stroke-width="1.5"/>`;
+    s += `<rect id="mo-${id}" x="${x + 1}" y="${y + 1}" width="${CW - 2}" height="${CH - 2}" rx="11" fill="none" stroke="#323945" stroke-width="1.5"/>`;
     s += `<text x="${x + 12}" y="${y + 26}" class="zone-name">${esc(z.name.length > 17 ? z.name.slice(0, 16) + "…" : z.name)}</text>` +
       `<text x="${x + CW - 10}" y="${y + 24}" text-anchor="end" class="zone-id">${esc(id)}</text>` +
-      `<text id="mb-${id}" x="${x + 12}" y="${y + 49}" class="zone-badge" fill="#34d399">NORMAL</text>` +
+      `<text id="mb-${id}" x="${x + 12}" y="${y + 49}" class="zone-badge" fill="#5fbf8a">NORMAL</text>` +
       `<text id="mv-${id}" x="${x + 12}" y="${y + 70}" class="zone-val"></text>` +
-      `<line id="ma-${id}" x1="${x + 12}" x2="${x + 202}" stroke="#f87171" stroke-dasharray="4 3" opacity="0"/>` +
-      `<polyline id="mp-${id}" fill="none" stroke="#22d3ee" stroke-width="2" points=""/>`;
-    s += `<g id="mcall-${id}" opacity="0" transform="translate(${x + CW - 22} ${y + 70})"><g class="m-call"><circle r="13" fill="#fbbf24"/>` +
+      `<line id="ma-${id}" x1="${x + 12}" x2="${x + 202}" stroke="#e0645c" stroke-dasharray="4 3" opacity="0"/>` +
+      `<polyline id="mp-${id}" fill="none" stroke="#67b7c4" stroke-width="2" points=""/>`;
+    s += `<g id="mcall-${id}" opacity="0" transform="translate(${x + CW - 22} ${y + 70})"><g class="m-call"><circle r="13" fill="#d6a24a"/>` +
       `<path d="M-6,-4 q0,-3 3,-3 l2,4 l-2,2 q2,4 6,6 l2,-2 l4,2 q0,3 -3,3 q-12,-2 -12,-12z" fill="#1a1200"/></g>` +
-      `<circle cx="11" cy="-10" r="9" fill="#dc2626"/><text id="mcalln-${id}" x="11" y="-6" text-anchor="middle" class="m-tag" fill="#fff" style="font-size:11px"></text><title id="mcallt-${id}">calls</title></g>`;
+      `<circle cx="11" cy="-10" r="9" fill="#c4443d"/><text id="mcalln-${id}" x="11" y="-6" text-anchor="middle" class="m-tag" fill="#fff" style="font-size:11px"></text><title id="mcallt-${id}">calls</title></g>`;
     // sensors: one dot each, coloured by Guardian's verdict
     const sl = Object.entries(sensors).filter(([, v]) => v.zone_id === id).sort((a, b) => a[0] < b[0] ? -1 : 1);
     sl.forEach(([sid, v], k) => {
@@ -443,22 +485,22 @@ function buildMap(st) {
       const ax = x + 26 + k * 44, ay = y + CH - 22;
       apos[aid] = [ax, ay];
       s += `<g id="mx-${aid}" class="m-act" transform="translate(${ax} ${ay})" style="color:#64748b"><title>${esc(aid)}</title>` +
-        `<circle class="bg" r="16" fill="#0b1222" stroke="currentColor" stroke-width="2"/>${GLYPH[v.type] || '<circle class="glyph" r="5" fill="currentColor"/>'}` +
-        `<path id="mq-${aid}" d="M-11,-11 L11,11 M11,-11 L-11,11" stroke="#f87171" stroke-width="3.5" opacity="0"/></g>` +
+        `<circle class="bg" r="16" fill="#10131a" stroke="currentColor" stroke-width="2"/>${GLYPH[v.type] || '<circle class="glyph" r="5" fill="currentColor"/>'}` +
+        `<path id="mq-${aid}" d="M-11,-11 L11,11 M11,-11 L-11,11" stroke="#e0645c" stroke-width="3.5" opacity="0"/></g>` +
         `<text id="mt-${aid}" x="${ax}" y="${ay - (k % 2 ? 36 : 23)}" text-anchor="middle" class="m-tag" opacity="0"></text>`;
     });
     s += "</g>";
   }
   // command beams, the Brain, units on top
   s += `<g id="m-beams"></g>`;
-  s += `<g transform="translate(${hub[0]} ${hub[1]})"><circle class="m-hub-ring" r="40"/><circle r="40" fill="#0d1a33" stroke="#60a5fa" stroke-width="2.5"/>` +
-    `<text y="-3" text-anchor="middle" style="font:800 15px var(--sans);letter-spacing:.12em" fill="#e8eef9">CITY</text>` +
-    `<text y="15" text-anchor="middle" style="font:800 15px var(--sans);letter-spacing:.12em" fill="#60a5fa">BRAIN</text></g>`;
+  s += `<g transform="translate(${hub[0]} ${hub[1]})"><circle class="m-hub-ring" r="40"/><circle r="40" fill="#12161d" stroke="#7fa6e8" stroke-width="2.5"/>` +
+    `<text y="-3" text-anchor="middle" style="font:800 15px var(--sans);letter-spacing:.12em" fill="#e7eaee">CITY</text>` +
+    `<text y="15" text-anchor="middle" style="font:800 15px var(--sans);letter-spacing:.12em" fill="#7fa6e8">BRAIN</text></g>`;
   s += `<g id="m-units">`;
   for (const [u, info] of Object.entries(st.units || {})) {
-    const [bg, fg, ch] = UNIT_LOOK[info.type] || ["#94a3b8", "#0b1222", (info.type || "?")[0].toUpperCase()];
+    const [bg, fg, ch] = UNIT_LOOK[info.type] || ["#94a3b8", "#10131a", (info.type || "?")[0].toUpperCase()];
     s += `<g id="mu-${u}" class="m-unit nomove"><title>${esc(u)}</title><circle id="mur-${u}" class="m-ring" r="19"/>` +
-      `<circle r="14" fill="${bg}" stroke="#0b1222" stroke-width="2"/><text y="4.5" text-anchor="middle" fill="${fg}">${esc(ch)}</text></g>`;
+      `<circle r="14" fill="${bg}" stroke="#10131a" stroke-width="2"/><text y="4.5" text-anchor="middle" fill="${fg}">${esc(ch)}</text></g>`;
   }
   s += `</g>`;
   s += `<text x="${MG}" y="${vh - 12}" class="m-legend">water and smoke rise with the readings the Brain believes · road colour = traffic · ` +
@@ -492,14 +534,14 @@ function updateMap(st) {
   for (const z of st.zones || []) {
     const id = z.zone_id; zstate[id] = z;
     const inc = z.state === "incident", q = (z.quarantined || []).length > 0, sev = inc && z.incident ? z.incident.severity : "";
-    const col = inc ? (sev === "high" || sev === "critical" ? "#f87171" : "#fbbf24") : q ? "#fbbf24" : "#2a3b5c";
+    const col = inc ? (sev === "high" || sev === "critical" ? "#e0645c" : "#d6a24a") : q ? "#d6a24a" : "#323945";
     const o = $("mo-" + id);
     o.setAttribute("stroke", col); o.setAttribute("stroke-width", inc ? 4 : q ? 2.5 : 1.5);
     o.setAttribute("stroke-dasharray", q && !inc ? "9 6" : ""); o.classList.toggle("pulse", inc);
     const b = $("mb-" + id);
     if (inc && z.incident) { b.textContent = z.incident.type.toUpperCase().replace("_", " ") + " · " + sev; b.setAttribute("fill", col); }
-    else if (q) { b.textContent = "QUARANTINE " + z.quarantined.slice(0, 2).join(", "); b.setAttribute("fill", "#fbbf24"); }
-    else { b.textContent = "NORMAL"; b.setAttribute("fill", "#34d399"); }
+    else if (q) { b.textContent = "QUARANTINE " + z.quarantined.slice(0, 2).join(", "); b.setAttribute("fill", "#d6a24a"); }
+    else { b.textContent = "NORMAL"; b.setAttribute("fill", "#5fbf8a"); }
     $("mw-" + id).style.transform = `scaleY(${(level(st, z, "water_level") * .8).toFixed(3)})`;
     $("ms-" + id).setAttribute("opacity", (level(st, z, "air_quality") * .85).toFixed(2));
     const sp = z.spark, bx = GEO.box[id];
@@ -512,7 +554,7 @@ function updateMap(st) {
       const X = (i) => bx.x + 12 + i * 190 / (sp.points.length - 1), Y = (v) => bx.y + 106 - (v - lo) / (hi - lo) * 28;
       const p = $("mp-" + id);
       p.setAttribute("points", sp.points.map((v, i) => X(i).toFixed(1) + "," + Y(v).toFixed(1)).join(" "));
-      p.setAttribute("stroke", sp.points[sp.points.length - 1] >= (sp.alert ?? Infinity) ? "#f87171" : "#22d3ee");
+      p.setAttribute("stroke", sp.points[sp.points.length - 1] >= (sp.alert ?? Infinity) ? "#e0645c" : "#67b7c4");
       const a = $("ma-" + id);
       if (sp.alert != null) { a.setAttribute("y1", Y(sp.alert)); a.setAttribute("y2", Y(sp.alert)); a.setAttribute("opacity", ".7"); }
     }
@@ -529,7 +571,7 @@ function updateMap(st) {
   for (const [sid, v] of Object.entries(m.sensors || {})) {
     const el = $("mn-" + sid); if (!el) continue;
     const quar = (st.quarantined || {})[sid] !== undefined;
-    el.setAttribute("fill", quar ? "#f87171" : !gOn ? "#475569" : {trusted: "#34d399", suspicious: "#fbbf24", rejected: "#f87171"}[v.verdict] || "#475569");
+    el.setAttribute("fill", quar ? "#e0645c" : !gOn ? "#475569" : {trusted: "#5fbf8a", suspicious: "#d6a24a", rejected: "#e0645c"}[v.verdict] || "#475569");
     el.setAttribute("r", quar || v.verdict === "rejected" ? 7 : 5);
     el.setAttribute("stroke", quar ? "#fff" : "none");
     el.querySelector("title").textContent = `${sid} (${v.type}): ${quar ? "QUARANTINED" : !gOn ? "not checked (Guardian offline)" : v.verdict || "no verdict yet"}`;
@@ -539,7 +581,7 @@ function updateMap(st) {
     const g = $("mx-" + aid); if (!g) continue;
     const st8 = String(a.state || "");
     const on = (a.type === "valve" && st8.startsWith("open")) || st8 === "priority" || st8 === "shed";
-    const colour = st8 === "shed" ? "#fbbf24" : a.type === "valve" ? "#22d3ee" : "#4ade80";
+    const colour = st8 === "shed" ? "#d6a24a" : a.type === "valve" ? "#67b7c4" : "#6fcf97";
     g.style.color = on ? colour : "#64748b";
     g.classList.toggle("active", on); g.classList.toggle("spin", on && a.type === "valve");
     g.querySelector("title").textContent = `${aid} (${a.type}): ${st8 || "state unknown"}`;
@@ -548,7 +590,7 @@ function updateMap(st) {
     const t = $("mt-" + aid), out = a.outcome;
     if (out && (out.status === "refused" || out.status === "failed")) {
       t.textContent = (out.status === "refused" ? "REFUSED " + (out.rule || "") : "FAILED").trim();
-      t.setAttribute("fill", "#f87171"); t.setAttribute("opacity", clamp(1.4 - out.age_s / 12, .25, 1).toFixed(2));
+      t.setAttribute("fill", "#e0645c"); t.setAttribute("opacity", clamp(1.4 - out.age_s / 12, .25, 1).toFixed(2));
     } else if (on) { t.textContent = st8.startsWith("open") ? "OPEN" : st8 === "priority" ? "PRIO" : st8.toUpperCase(); t.setAttribute("fill", colour); t.setAttribute("opacity", .9); }
     else t.setAttribute("opacity", 0);
     if (st8 === "shed") for (const zid of a.controls || []) { const d = $("md-" + zid); if (d) d.setAttribute("opacity", .32); }
@@ -556,7 +598,7 @@ function updateMap(st) {
   // roads: traffic density of the two zones; green corridor when a signal gives priority
   for (const [a, b] of GEO.pairs) {
     const r = Math.max(level2(st, zstate[a]), level2(st, zstate[b]));
-    $(`mr-${a}-${b}`).setAttribute("stroke", r >= 1 ? "#f87171" : r >= .6 ? "#fbbf24" : "#34d399");
+    $(`mr-${a}-${b}`).setAttribute("stroke", r >= 1 ? "#e0645c" : r >= .6 ? "#d6a24a" : "#5fbf8a");
     const prio = Object.values(acts).some(x => x.type === "traffic_signal" && x.state === "priority" && (x.zone_id === a || x.zone_id === b));
     $(`mk-${a}-${b}`).setAttribute("opacity", prio ? .55 : 0);
   }
@@ -578,7 +620,7 @@ function updateMap(st) {
   for (const c of m.commands || []) {
     const to = GEO.apos[c.target_id] || (GEO.upos || {})[c.target_id];
     if (!to) continue;
-    const colour = c.result === "done" ? "#34d399" : c.result ? "#f87171" : "#60a5fa";
+    const colour = c.result === "done" ? "#5fbf8a" : c.result ? "#e0645c" : "#7fa6e8";
     const op = clamp(1 - c.age_s / 10, 0, 1);
     if (op <= 0) continue;
     const [hx, hy] = GEO.hub, mx = (hx + to[0]) / 2, my = Math.min(hy, to[1]) - 50;
@@ -586,7 +628,7 @@ function updateMap(st) {
       `<circle cx="${to[0]}" cy="${to[1]}" r="22" fill="none" stroke="${colour}" stroke-width="3" opacity="${op.toFixed(2)}"/>`;
   }
   $("m-beams").innerHTML = beams;
-  $("m-frame").setAttribute("stroke", st.safe_mode ? "#fbbf24" : "#1c2a45");
+  $("m-frame").setAttribute("stroke", st.safe_mode ? "#d6a24a" : "#222831");
   $("m-frame").setAttribute("stroke-width", st.safe_mode ? 5 : 2);
 }
 function level2(st, z) {                // traffic: density over its alert threshold (1 = at the threshold)
