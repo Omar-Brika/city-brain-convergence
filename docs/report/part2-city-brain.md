@@ -51,7 +51,12 @@ and rising (or a flood call), a fire air quality and/or fire calls, an accident 
 sudden speed drop. Each source gets a probability `p = min(cap, weight × strength × trust)` and the
 confidence is `1 − ∏(1 − p)`. Caps make one source alone weak: a single reading reaches at most
 0.6, and all the calls of one zone count as **one** source capped at 0.55, so ten fake calls are
-still one source (B7). **Guardian's trust** enters here: trusted readings weigh 1 (or the
+still one source (B7). How long a call counts was measured, not guessed: in 5,613 NYC 311 flood calls
+during Hurricane Ida (our dataset study), calls from one ~1 km area came a median 19 minutes apart
+on the storm night, and half of the flooded areas got a second call within an hour of the first. So a
+flood call counts for an hour and two callers give full strength (`tools/calibrate_calls.py`
+recomputes this). Fire and accident calls keep a 2-minute window, because 311 is not an emergency
+line. **Guardian's trust** enters here: trusted readings weigh 1 (or the
 Guardian's score), suspicious 0.3, rejected 0 (ignored, so a rejected fake flood opens nothing:
 B3/T5), and readings without a verdict 0.6 with the incident marked *not verified*. An incident
 opens at confidence ≥ 0.5 on two checks in a row, is updated only on new evidence or a severity
@@ -188,6 +193,7 @@ patterns (`config/topics.yaml`) and field-name mappings (`config/input.yaml`).
 - **Case memory from one lab.** The library is 90 tests of one room and one material, with laboratory
   sensors, and only zones with smoke and CO sensors use it. A smouldering fire before CO rises looks
   like cooking (the known hard case of the study); with Guardian's real sensors this must be
-  re-checked. The 311 and traffic studies are not used live yet.
+  re-checked. The 311 study calibrates only the flood-call window (a non-emergency line, one city, one storm),
+and the traffic study waits for its data.
 - **Shared HMAC keys.** Any holder of a pair key can sign for that pair; Ed25519 removes this for
   Guardian.

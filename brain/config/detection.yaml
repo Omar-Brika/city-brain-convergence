@@ -53,6 +53,14 @@ calls:
   trust: 1.0                 # calls are not checked by Guardian
   max_evidence: 3            # newest calls listed as evidence
   superseded_by_recovery: true   # calls made before a live, trusted sensor reported the zone normal again no longer count
+  # Per call category, replacing window_s / full_count. Flood: calibrated on 5,613 NYC 311 flood calls
+  # during Hurricane Ida (python tools/calibrate_calls.py): on the storm night, calls from one ~1 km area
+  # came a median 19 min apart; within an hour of the first, 51 % of flooded areas had a second call and
+  # 29 % a third; 3 calls within 2 min happened 21 times in 536 areas. So a flood call counts for an hour and two callers
+  # are full strength. Still ONE source capped at `cap` (B7), and a newer trusted reading that says the
+  # zone is back to normal still cancels it (superseded_by_recovery).
+  by_category:
+    flood: {window_s: 3600, full_count: 2}
 
 incidents:
   flood:

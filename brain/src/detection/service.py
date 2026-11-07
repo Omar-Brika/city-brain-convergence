@@ -145,7 +145,7 @@ class DetectionService:
         self.trust: dict[str, tuple[str, float | None]] = {}   # sensor_id -> (verdict, score)
         self.guardian_online = True
         self.twin_status: str | None = None
-        self.calls: deque[Call] = deque(maxlen=500)
+        self.calls: deque[Call] = deque(maxlen=2000)        # a flood call counts for an hour (calls.by_category)
         self.tracks: dict[tuple[str, str], Track] = {}
         self.cases: dict[str, dict[str, Any]] = {}          # zone -> newest case memory verdict (+ "_at")
         self._citywide_until = float("-inf")
@@ -414,21 +414,22 @@ class DetectionService:
     def _call_sources(self, zone: str, cats: dict[str, float], now: float,
                       not_before: float | None = None) -> list[Source]:
         c = self.cfg["calls"]
-        window = float(c["window_s"])
         out = []
         for cat, weight in cats.items():
+            per = (c.get("by_category") or {}).get(cat) or {}     # e.g. flood: calibrated on NYC 311 (Ida)
+            window = float(per.get("window_s", c["window_s"]))
             recent = [k for k in self.calls if k.zone_id == zone and k.category == cat and now - k.at <= window
                       and (not_before is None or k.at > not_before)]
             if not recent:
                 continue
-            strength = min(1.0, len(recent) / float(c["full_count"]))
+            strength = min(1.0, len(recent) / float(per.get("full_count", c["full_count"])))
             trust = float(c["trust"])
             p = min(float(c["cap"]), float(weight) * strength * trust)
             ev = [IncidentEvidence(source_id=k.call_id, kind="call", category=cat, trust=round(trust, 2))
                   for k in recent[-int(c["max_evidence"]):]]
             n = len(recent)
             out.append(Source(f"calls:{cat}", "call", "primary", p, ev, recent[0].at, recent[0].corr,
-                              f"{n} {cat} call{'s' if n > 1 else ''} in {window:g} s"))
+                              f"{n} {cat} call{'s' if n > 1 else ''} in {_span(window)}"))
         return out
 
     def severity(self, a: Assessment) -> str:
@@ -639,6 +640,10 @@ class DetectionService:
 
 
 # --- helpers -------------------------------------------------------------------------------
+
+
+def _span(seconds: float) -> str:
+    return f"{seconds / 60:g} min" if seconds >= 600 else f"{seconds:g} s"
 
 
 def _prefix(template: str) -> str:

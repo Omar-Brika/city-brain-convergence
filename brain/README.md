@@ -183,6 +183,8 @@ call ─────────────────────────
 trust/+, layer-status/guardian ─▶ weights ─────────┘                                                                    └─▶ brain/event
 ```
 
+**Calls** of a zone and category are one source, capped (B7), over `calls.window_s` (120 s). The exception is `calls.by_category`: flood calls count for 60 min and are full at 2 callers. This is calibrated on 5,613 NYC 311 flood calls during Hurricane Ida (storm night: a median 19 min between calls of one ~1 km area; 51 % of flooded areas had a second call within an hour). `python tools/calibrate_calls.py` recomputes it from `vector-storage/data/nyc311/`.
+
 **Consumes:** `brain/internal/meta`, `reading`, `call`, `trust/+`, `layer-status/+`, `case` (case memory). Zones, neighbours, sensors and alert levels all come from `meta`; no id is in the code.
 ## Case memory
 

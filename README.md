@@ -1,6 +1,6 @@
-# City Brain Convergence
+# City Brain Convergence · triplet-05
 
-TSYP14 technical challenge. One triplet, three layers of a smart city that work as one system:
+TSYP14 technical challenge. One triplet (**triplet-05**), three layers of a smart city that work as one system:
 
 | Layer | Question | Folder |
 |---|---|---|

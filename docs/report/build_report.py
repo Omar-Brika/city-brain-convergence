@@ -100,10 +100,13 @@ def test_book_summary() -> str:
     return intro + "\n".join(rows)
 
 
+TEAM = os.environ.get("TEAM_NAME", "triplet-05")    # the triplet's name on the cover (one place to change it)
+
+
 def cover() -> str:
     today = dt.date.today().strftime("%d %B %Y")
     return f"""<section class="cover"><h1>City Brain Convergence</h1>
-<div class="sub">Phase 1 report · TSYP14 technical challenge · {today}</div>
+<div class="sub">{TEAM} · Phase 1 report · TSYP14 technical challenge · {today}</div>
 <table><tr><th>Part</th><th>Content</th></tr>
 <tr><td>0</td><td>Triplet overview and integration</td></tr>
 <tr><td>1</td><td>The City (Twin)</td></tr><tr><td>2</td><td>The City Brain</td></tr>
