@@ -236,6 +236,17 @@ header { background: var(--bg); padding: .7rem 1.1rem; gap: 1.4rem; }
 .lv-error .bar { background: var(--err) !important; opacity: 1; }
 #rows::-webkit-scrollbar { width: .55rem; } #rows::-webkit-scrollbar-thumb { background: var(--line); border-radius: 1rem; }
 #rows::-webkit-scrollbar-track { background: transparent; }
+
+/* ---- modification 3: map ---------------------------------------------------------------- */
+.zone-name { font-weight: 650; font-size: 18px; }
+.zone-badge { font-size: 12.5px; font-weight: 650; letter-spacing: .08em; }
+.zone-val { font-weight: 600; font-size: 15px; }
+.zone-id { opacity: .7; }
+.m-beam { stroke-width: 2; }
+.m-hub-ring { stroke-width: 1.5; animation-duration: 3.6s; }
+.m-tag { font-weight: 650; }
+#mapcard svg text { text-rendering: geometricPrecision; }
+.m-legend { font-size: 12px; }
 </style>
 </head>
 <body>
@@ -449,9 +460,9 @@ function buildMap(st) {
     hub = [x0 + free[0][0] * (CW + GAP) + CW / 2, y0 + free[0][1] * (CH + GAP) + CH / 2];
   }
   let s = `<svg viewBox="0 0 ${vw} ${vh}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="live city map"><defs>`;
-  for (const z of zones) s += `<clipPath id="mc-${z.zone_id}"><rect x="${box[z.zone_id].x}" y="${box[z.zone_id].y}" width="${CW}" height="${CH}" rx="12"/></clipPath>`;
+  for (const z of zones) s += `<clipPath id="mc-${z.zone_id}"><rect x="${box[z.zone_id].x}" y="${box[z.zone_id].y}" width="${CW}" height="${CH}" rx="8"/></clipPath>`;
   s += `<pattern id="mwv" width="40" height="12" patternUnits="userSpaceOnUse"><path d="M0,6 Q10,0 20,6 T40,6" fill="none" stroke="#8cc4e3" stroke-width="1.6" opacity=".55"/></pattern></defs>`;
-  s += `<rect id="m-frame" x="1" y="1" width="${vw - 2}" height="${vh - 2}" rx="14" fill="#0f1217" stroke="#222831" stroke-width="2"/>`;
+  s += `<rect id="m-frame" x="1" y="1" width="${vw - 2}" height="${vh - 2}" rx="8" fill="#0f1217" stroke="#222831" stroke-width="1"/>`;
   if (sea) {
     const r = {west: [0, 0, SEA + MG / 2, vh - LEG], east: [vw - SEA - MG / 2, 0, SEA + MG / 2, vh - LEG],
       north: [0, 0, vw, SEA + MG / 2], south: [0, vh - LEG - SEA - MG / 2, vw, SEA + MG / 2]}[sea];
@@ -466,8 +477,8 @@ function buildMap(st) {
   for (const [a, b] of pairs) {
     const [ax, ay] = centre(a), [bx, by] = centre(b);
     s += `<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="#2c333e" stroke-width="30" stroke-linecap="round"/>` +
-      `<line id="mr-${a}-${b}" class="m-road" x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="#5fbf8a" stroke-width="5" stroke-linecap="round" opacity=".85"/>` +
-      `<line class="m-flow" x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="#e2e8f0" stroke-width="3" stroke-linecap="round" opacity=".45"/>` +
+      `<line id="mr-${a}-${b}" class="m-road" x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="#5fbf8a" stroke-width="3" stroke-linecap="round" opacity=".5"/>` +
+      `<line class="m-flow" x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="#e2e8f0" stroke-width="1.5" stroke-linecap="round" opacity=".3"/>` +
       `<line id="mk-${a}-${b}" class="m-corr" x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="#6fcf97" stroke-width="12" opacity="0"/>`;
   }
   s += "</g>";
@@ -476,13 +487,13 @@ function buildMap(st) {
   const apos = {};
   for (const z of zones) {
     const {x, y} = box[z.zone_id], id = z.zone_id;
-    s += `<g><rect x="${x}" y="${y}" width="${CW}" height="${CH}" rx="12" fill="${TINT[z.type] || "#171b22"}"/>`;
+    s += `<g><rect x="${x}" y="${y}" width="${CW}" height="${CH}" rx="8" fill="${TINT[z.type] || "#171b22"}"/>`;
     s += `<g clip-path="url(#mc-${id})"><g id="mw-${id}" class="m-water" style="transform:scaleY(0)"><rect x="${x}" y="${y}" width="${CW}" height="${CH}" fill="#4f9fd0" opacity=".38"/>` +
       `<rect class="m-wave" x="${x}" y="${y}" width="${CW + 80}" height="12" fill="url(#mwv)"/></g>` +
       `<g id="ms-${id}" class="m-smoke" opacity="0">` +
       [0, 1, 2, 3].map(k => `<circle class="m-puff" cx="${x + 70 + k * 70}" cy="${y + 104}" r="24" fill="#9ca3af" style="animation-delay:${-k * .85}s"/>`).join("") + `</g>` +
       `<rect id="md-${id}" class="m-dim" x="${x}" y="${y}" width="${CW}" height="${CH}" fill="#000" opacity="0"/></g>`;
-    s += `<rect id="mo-${id}" x="${x + 1}" y="${y + 1}" width="${CW - 2}" height="${CH - 2}" rx="11" fill="none" stroke="#323945" stroke-width="1.5"/>`;
+    s += `<rect id="mo-${id}" x="${x + 1}" y="${y + 1}" width="${CW - 2}" height="${CH - 2}" rx="7" fill="none" stroke="#2c333e" stroke-width="1"/>`;
     s += `<text x="${x + 12}" y="${y + 26}" class="zone-name">${esc(z.name.length > 17 ? z.name.slice(0, 16) + "…" : z.name)}</text>` +
       `<text x="${x + CW - 10}" y="${y + 24}" text-anchor="end" class="zone-id">${esc(id)}</text>` +
       `<text id="mb-${id}" x="${x + 12}" y="${y + 49}" class="zone-badge" fill="#5fbf8a">NORMAL</text>` +
@@ -647,7 +658,7 @@ function updateMap(st) {
   }
   $("m-beams").innerHTML = beams;
   $("m-frame").setAttribute("stroke", st.safe_mode ? "#d6a24a" : "#222831");
-  $("m-frame").setAttribute("stroke-width", st.safe_mode ? 5 : 2);
+  $("m-frame").setAttribute("stroke-width", st.safe_mode ? 2 : 1);
 }
 function level2(st, z) {                // traffic: density over its alert threshold (1 = at the threshold)
   if (!z) return 0;
