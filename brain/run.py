@@ -2,6 +2,7 @@
 
     python run.py                    # all Brain modules (config/launch.yaml)
     python run.py --mocks            # + mock Twin and mock Guardian: the Brain runs alone (R1)
+    python run.py --mocks twin       # only the mock Twin (the real Guardian is connected)
     python run.py --mocks --mock-llm # + scripted LLM instead of Ollama (no GPU)
     python run.py --only input,llm   # a subset
     python run.py --without graph
@@ -117,7 +118,11 @@ def select(args, cfg: dict) -> dict[str, str]:
     if args.mock_llm:
         mods["llm"] = cfg["mock_llm"]
     if args.mocks:
-        mods.update(cfg["mocks"])
+        wanted = None if args.mocks in (True, "all") else set(args.mocks.split(","))
+        unknown = (wanted or set()) - set(cfg["mocks"])
+        if unknown:
+            raise SystemExit(f"unknown mock(s): {', '.join(sorted(unknown))} (known: {', '.join(cfg['mocks'])})")
+        mods.update({k: v for k, v in cfg["mocks"].items() if wanted is None or k in wanted})
     if args.only:
         mods = {k: v for k, v in mods.items() if k in args.only.split(",")}
     for name in (args.without or "").split(","):
@@ -127,7 +132,8 @@ def select(args, cfg: dict) -> dict[str, str]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--mocks", action="store_true", help="also start the mock Twin and mock Guardian")
+    ap.add_argument("--mocks", nargs="?", const="all", default=None, metavar="twin,guardian",
+                    help="also start the mock layers: all of them, or only those listed")
     ap.add_argument("--mock-llm", action="store_true", help="scripted LLM instead of Ollama")
     ap.add_argument("--only", help="comma-separated module names")
     ap.add_argument("--without", help="comma-separated module names to leave out")

@@ -28,6 +28,18 @@ python scenarios/run.py B2     # real flood at the port: incident -> decision ->
 python scenarios/run.py --all  # every scenario, PASS/FAIL, one log file per run in logs/
 ```
 
+**Everything in one container** (for integration with the Twin and Guardian teams): broker,
+every Brain module, mock Twin, mock Guardian, timeline. Secrets are created on the first start.
+
+```bash
+docker compose -f docker-compose.city.yml up --build              # BRAIN_LLM=mock without Ollama
+BRAIN_MOCKS=guardian docker compose -f docker-compose.city.yml up  # the real Twin is connected
+BRAIN_MOCKS=none     docker compose -f docker-compose.city.yml up  # both real layers connected
+```
+
+Partners connect to port 8883 (MQTT over TLS) with `brain/secrets/ca.crt`, their password and HMAC
+key; `BROKER_HOSTS=<laptop LAN IP>` puts that address in the broker certificate.
+
 Without Docker (recommended on the demo laptop, so the LLM runs next to the GPU):
 
 ```bash

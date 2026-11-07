@@ -31,6 +31,7 @@ from typing import Any, Callable
 
 from ..common import config
 from ..common.log import EventLogger, iso_utc
+from .history import History
 from .store import CITY_KINDS, Graph, Node
 
 STAGES = {"reading": 0, "verdict": 1, "call": 2, "incident": 3, "proposal": 4, "decision": 5,
@@ -65,6 +66,7 @@ class GraphService:
         self.layers: dict[str, str] = {}
         self.started = clock()
         self.messages = 0
+        self.history = History(self.cfg.get("history"), self.log)   # Ida 2021 reference (tools/build_history.py)
 
     # --- inputs -------------------------------------------------------------------
 
@@ -401,7 +403,37 @@ class GraphService:
                 "quarantined": self._quarantined(),
                 "related": self._related(inc, area),
             }
+            past = self._history_for(inc)
+            if past is not None:
+                doc["history"] = {k: past[k] for k in ("match", "hint") if k in past}
         return 200, fit(doc, int(c["max_chars"]))
+
+    def _history_for(self, inc: Node) -> dict[str, Any] | None:
+        """The Ida reference for this incident (None if the library has nothing comparable)."""
+        if not self.history.loaded:
+            return None
+        now = self.clock()
+        calls = sum(1 for n in self.g.of_kind("call")
+                    if n.attrs.get("category") == inc.attrs["type"] and now - n.at <= 3600)
+        return self.history.match(inc.attrs["type"], inc.attrs.get("severity"), calls)
+
+    def history_view(self, incident_id: str | None = None) -> Answer:
+        """GET /history: the reference library. GET /history/{incident_id}: its match for one incident."""
+        if not self.history.loaded:
+            return 404, {"error": "no incident history loaded (graph.yaml history.enabled / file)"}
+        if incident_id is None:
+            return 200, self.history.summary()
+        with self.lock:
+            inc = self.g.get("incident", incident_id)
+            if inc is None:
+                return 404, {"error": "unknown incident", "incident_id": incident_id}
+            past = self._history_for(inc)
+            head = {"incident_id": incident_id, "type": inc.attrs["type"], "severity": inc.attrs.get("severity")}
+            level = self.history.level_for(inc.attrs.get("severity"))
+        if past is None:
+            return 200, head | {"level": level, "match": None,
+                                "why": "no comparable incident type or level in the history"}
+        return 200, head | past
 
     def zone(self, zone_id: str) -> Answer:
         with self.lock:
@@ -472,6 +504,7 @@ class GraphService:
         with self.lock:
             counts = {k: self.g.count(k) for k in sorted(self.g.by_kind)}
             return 200, {"status": "ok", "meta_loaded": self.g.count("zone") > 0, "nodes": counts,
+                         "history": self.history.lib.get("source") if self.history.loaded else None,
                          "edges": sum(len(v) for v in self.g.out.values()), "dropped": self.g.dropped,
                          "messages": self.messages, "layers": self.layers,
                          "uptime_s": round(self.clock() - self.started, 1)}
@@ -485,11 +518,21 @@ def dumps(doc: Any) -> str:
 
 
 def fit(doc: dict[str, Any], max_chars: int) -> dict[str, Any]:
-    """Trim the lowest-value lists until the compact JSON fits in max_chars."""
-    order = ("related", "units", "actuators", "evidence", "quarantined")
+    """Trim the lowest-value parts until the compact JSON fits in max_chars.
+
+    Related events go down to 3 and free units to 2 (the LLM takes its devices from its own city
+    state), then the history hint (reference data from another city) is dropped whole, then the
+    remaining lists are trimmed as before."""
+    order = (("related", 3), ("units", 2), ("history", None), ("related", 0), ("units", 0), ("actuators", 0),
+             ("evidence", 0), ("quarantined", 0))
     while len(dumps(doc)) > max_chars:
-        for name in order:
-            if doc.get(name):
+        for name, keep in order:
+            if keep is None:
+                if doc.get(name):
+                    del doc[name]
+                    doc["trimmed"] = True
+                    break
+            elif len(doc.get(name) or []) > keep:
                 doc[name].pop()
                 doc["trimmed"] = True
                 break

@@ -241,7 +241,9 @@ The Brain's memory: the city map and every event, linked, in memory (stdlib only
 | `GET /actuators?zone_id=` | actuators that control the zone with state and quarantine (all without `zone_id`) |
 | `GET /chain/{correlation_id}` | ordered steps reading -> verdict -> call -> incident -> proposals -> decision -> action -> ack |
 | `GET /graph` | nodes and edges: the city + the 20 most recent incidents and what is linked to them (for a visualization) |
-| `GET /health` | node counts per kind, dropped nodes, layer status |
+| `GET /history` | the incident history library (Hurricane Ida 2021, NYC 311): surge levels, surge waves, co-surge |
+| `GET /history/{incident_id}` | the history match for one incident: surge level, past calls at that level, share inside a wave, hint |
+| `GET /health` | node counts per kind, dropped nodes, layer status, history loaded |
 
 Unknown ids and paths answer 404 with a JSON body.
 
@@ -252,6 +254,7 @@ Unknown ids and paths answer 404 with a JSON body.
 - **One action node per action of a decision**; the outcomes `sent`, `acknowledged`, `failed`, `refused` update its status and history.
 - **Bounded memory:** a cap per kind (`caps`), the oldest node dropped with its links; the city is never dropped.
 - **Thread safety:** one lock; MQTT callbacks write, HTTP threads read. Answers take about a millisecond (test: < 100 ms).
+- **Incident history** (`history` in `config/graph.yaml`, `src/graph/history.py`): a real storm as reference. `data/history/nyc311-ida.json` is built offline by `tools/build_history.py` from the NYC 311 calls of Hurricane Ida (the port of the notebooks in `notebooks/`, same numbers). For a flood, `/context` gets `history: {match, hint}` (e.g. *"100% of flood calls at 'heavy surge' came inside a surge wave (3 waves of 7-15 h, peak 659 calls/h); traffic signal failure ran 5.4x higher during waves"*). When the context is too long, related events go down to 3 and units to 2 before the hint is dropped. The same data loads into Neo4j for the jury: see `data/history/README.md`.
 | `brain/internal/proposal` | no | `origin: rules`, on every opened / updated incident (ids `rules-...`) |
 | `brain/internal/decision` | no | chosen actions, score, alternatives with scores, risk, evidence sensors, mode, one-line explanation (ids `math-...`) |
 | `brain/event` | no | `rules_proposal` (when its actions change), `decision`, `decision_changed`, `decision_skipped` |
