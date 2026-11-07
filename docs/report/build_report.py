@@ -1,11 +1,13 @@
 """Build docs/report.pdf (Phase 1 report, five parts, 20 pages max) from the Markdown sources.
 
     python docs/report/build_report.py            # from the repository root (needs: pip install markdown)
+    python docs/report/build_report.py --html report.html   # the page only, to print with any browser
 
 Sources: INTEGRATION.md (part 0), docs/report/part2-city-brain.md (part 2), the scenario files and
 their latest run logs (part 4, summary; the full Test Book is TESTBOOK.md), docs/report/part5-collaboration.md.
 Parts 1 and 3 are written by the Twin and Guardian teams: docs/report/part1-twin.md and
-docs/report/part3-guardian.md are used if present. The PDF is printed by Edge or Chrome (headless).
+docs/report/part3-guardian.md are used if present. The PDF is printed by Edge or Chrome (headless, own profile); if the browser writes nothing (seen
+while an Edge update is half installed) the build stops with an error instead of keeping the old PDF.
 """
 
 from __future__ import annotations
@@ -16,6 +18,7 @@ import json
 import os
 import shutil
 import subprocess
+import tempfile
 import sys
 from pathlib import Path
 
@@ -132,12 +135,27 @@ def main() -> int:
         part("Part 5: Collaboration process", strip_title((REPORT / "part5-collaboration.md").read_text(encoding="utf-8"))),
     ])
     page = f"<!doctype html><html><head><meta charset='utf-8'><title>City Brain Convergence - Phase 1 report</title><style>{CSS}</style></head><body>{html}</body></html>"
+    if "--html" in sys.argv:                            # the page only (print it with any browser)
+        out = Path(sys.argv[sys.argv.index("--html") + 1])
+        out.write_text(page, encoding="utf-8")
+        print("wrote", out)
+        return 0
     tmp = REPORT / "_report.html"
     tmp.write_text(page, encoding="utf-8")
-    subprocess.run([browser(), "--headless=new", "--disable-gpu", "--no-pdf-header-footer",
-                    f"--print-to-pdf={OUT}", tmp.resolve().as_uri()], check=True,
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
+    # print to a new file, then replace: the browser silently keeps an old PDF it cannot overwrite
+    fresh = OUT.with_name("_report.pdf")
+    fresh.unlink(missing_ok=True)
+    with tempfile.TemporaryDirectory() as profile:      # own profile: an open browser window does not interfere
+        subprocess.run([browser(), "--headless=new", "--disable-gpu", "--no-pdf-header-footer",
+                        f"--user-data-dir={profile}", f"--print-to-pdf={fresh}", tmp.resolve().as_uri()],
+                       check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
     tmp.unlink()
+    if not fresh.is_file() or fresh.stat().st_size == 0:
+        sys.exit("the browser wrote no PDF")
+    try:
+        os.replace(fresh, OUT)
+    except PermissionError:
+        sys.exit(f"{OUT} is open in another program (PDF viewer?): close it and run again; new PDF kept in {fresh}")
     print("wrote", OUT)
     return 0
 
