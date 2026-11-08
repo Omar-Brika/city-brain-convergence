@@ -1,6 +1,7 @@
 """HTTP side of the timeline: the page, a Server-Sent Events stream and a small JSON API.
 
-    GET /                     the live screen (one self-contained HTML page, works offline)
+    GET /                     the live screen (built React app from static/, works offline; falls back to page.html)
+    GET /static/...           its script, styles and fonts
     GET /events               SSE: `row` events (id = seq) and a `state` event every state_every_s;
                               catches up from ?after=<seq> or the Last-Event-ID header
     GET /api/recent?limit=N   last rows (page reload)
@@ -25,7 +26,10 @@ from typing import Any
 
 from .service import TimelineService
 
-PAGE = Path(__file__).with_name("page.html")
+PAGE = Path(__file__).with_name("page.html")       # previous single-file screen: fallback when the UI is not built
+STATIC = Path(__file__).with_name("static")        # built React screen (brain/ui, `npm run build`), committed
+TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
+         ".woff2": "font/woff2", ".svg": "image/svg+xml", ".png": "image/png", ".json": "application/json", ".map": "application/json"}
 
 
 class TimelineServer(ThreadingHTTPServer):
@@ -35,7 +39,8 @@ class TimelineServer(ThreadingHTTPServer):
     def __init__(self, address: tuple[str, int], service: TimelineService, cfg: dict[str, Any]):
         self.service = service
         self.cfg = cfg
-        self.page = PAGE.read_bytes()
+        index = STATIC / "index.html"
+        self.page = index.read_bytes() if index.is_file() else PAGE.read_bytes()
         self.stopping = threading.Event()
         super().__init__(address, Handler)
 
@@ -75,6 +80,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if url.path in ("/", "/index.html"):
                 self._send(200, self.server.page, "text/html; charset=utf-8")
+            elif url.path.startswith("/static/"):
+                self._static(url.path[len("/static/"):])
             elif url.path == "/events":
                 self._events(qs)
             elif url.path == "/api/recent":
@@ -94,6 +101,13 @@ class Handler(BaseHTTPRequestHandler):
             pass
         except ValueError as e:
             self._json({"error": str(e)}, 400)
+
+    def _static(self, rel: str) -> None:
+        target = (STATIC / urllib.parse.unquote(rel)).resolve()
+        if STATIC.resolve() not in target.parents or not target.is_file():      # no path traversal
+            self._json({"error": "not found"}, 404)
+            return
+        self._send(200, target.read_bytes(), TYPES.get(target.suffix.lower(), "application/octet-stream"))
 
     def _chain(self, cid: str) -> dict[str, Any]:
         out: dict[str, Any] = {"correlation_id": cid, "local": self.server.service.chain(cid),

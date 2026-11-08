@@ -10,6 +10,7 @@ import sys
 from argparse import Namespace
 from pathlib import Path
 
+import pytest
 import yaml
 
 from src.common import config
@@ -61,6 +62,11 @@ def test_launcher_selection():
     assert mods["llm"] == cfg["mock_llm"] and "twin" in mods and "graph" not in mods
     only = run.select(Namespace(mock_llm=False, mocks=False, only="input,llm", without=None), cfg)
     assert only == {"input": "src.input", "llm": "src.llm"}
+    some = run.select(Namespace(mock_llm=False, mocks="twin", only=None, without=None), cfg)
+    assert "twin" in some and "guardian" not in some                      # the real Guardian is connected
+    assert {"twin", "guardian"} <= set(run.select(Namespace(mock_llm=False, mocks="all", only=None, without=None), cfg))
+    with pytest.raises(SystemExit):
+        run.select(Namespace(mock_llm=False, mocks="tiwn", only=None, without=None), cfg)
 
 
 def test_certificates_have_the_key_identifiers_strict_tls_needs(tmp_path, monkeypatch):

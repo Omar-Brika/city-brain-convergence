@@ -165,7 +165,7 @@ class LlmService:
             wait = min(float(self.cfg["budget"]["context_s"]), job.deadline - self.clock())
             doc = self.graph.fetch(inc.incident_id, wait) if wait > 0 else None
             if doc is not None:
-                ctx = merge_graph(ctx, doc)
+                ctx = merge_graph(ctx, doc, bool(self.cfg["context"].get("use_history", False)))
         if not ctx.targets:
             return self._skip(job, "no device or unit available for this zone")
 

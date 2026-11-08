@@ -50,6 +50,9 @@ from .model import ProposalScore, ScoringModel
 Publisher = Callable[[str, str, int, bool], None]   # topic, payload, qos, retain
 
 
+EVIDENCE_RULES = frozenset({"S3", "S6"})   # safety rules that refuse for lack of corroboration
+
+
 @dataclass(slots=True)
 class Track:
     incident: Incident
@@ -70,6 +73,7 @@ class Track:
     severity_rank: int = 0                      # at the last decision
     evidence_types: frozenset[str] = frozenset()
     skip_reason: str | None = None
+    awaiting_evidence: int | None = None        # evidence count when S3/S6 refused: retry once there is more
 
     @property
     def id(self) -> str:
@@ -200,7 +204,7 @@ class ScoringService:
         self._publish_rules(track, only_if_changed=True)
         if track.state == "waiting":
             self._maybe_decide_now(track)
-        elif track.state == "skipped" or self._redecide_trigger(track):
+        elif track.state == "skipped" or self._redecide_trigger(track) or self._more_evidence(track):
             # new epoch: wait for the LLM's answer to this version again
             track.state, track.llm, track.early = "waiting", None, False
             track.deadline = now + self.budget_s
@@ -213,6 +217,12 @@ class ScoringService:
             self._decide(track, f"{track.incident.severity}: rules at once", early=True)
         elif track.llm is not None:
             self._decide(track, "LLM proposal in time")
+
+    def _more_evidence(self, track: Track) -> bool:
+        if track.awaiting_evidence is None or len(track.incident.evidence) <= track.awaiting_evidence:
+            return False
+        track.awaiting_evidence = None
+        return True
 
     def _redecide_trigger(self, track: Track) -> bool:
         on = self.decide_cfg["redecide_on"]
@@ -348,6 +358,12 @@ class ScoringService:
             del self.assigned[o.target_id]          # the dispatch never happened: the unit is not out
         track = self.tracks.get(o.incident_id)
         if track is None or o.decision_id not in track.decisions:
+            return
+        if o.status == "refused" and o.rule in EVIDENCE_RULES:
+            # S3 / S6: not enough corroboration YET. The device is fine: do not exclude it, and do not
+            # re-decide in a loop; try again when the incident gains evidence (scenarios B2, B6, B12).
+            track.issued.discard((o.target_id, o.action))
+            track.awaiting_evidence = len(track.incident.evidence)
             return
         track.failed.add(o.target_id)
         why = f"{o.action} {o.target_id} {o.status}" + (f" ({o.rule or o.detail})" if (o.rule or o.detail) else "")

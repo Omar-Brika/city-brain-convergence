@@ -191,11 +191,12 @@ def test_decision_row_and_panel(h):
     assert d["actions"] == ["open valve-01"] and d["alternatives"][0]["score"] == 1.21
 
 
-def test_rule_proposals_are_rows_llm_ones_are_not(h):
+def test_internal_proposals_are_no_rows_by_default(h):
+    # the rules_proposal and llm_proposal events already show them: no second row for the same proposal
     p = {"correlation_id": "c", "incident_id": "inc-1", "actions": [{"target_id": "valve-01", "action": "open"}],
          "justification": "j"}
     assert h.internal("brain/internal/proposal", {**p, "origin": "llm"}) == []
-    assert one(h.internal("brain/internal/proposal", {**p, "origin": "rules"}))["kind"] == "proposal"
+    assert h.internal("brain/internal/proposal", {**p, "origin": "rules"}) == []
 
 
 def test_bad_payloads_are_ignored(h):

@@ -1,6 +1,7 @@
 """HTTP context API of the graph (stdlib ThreadingHTTPServer, JSON only, read-only).
 
     GET /context/{incident_id}   GET /zone/{zone_id}   GET /actuators?zone_id=...
+    GET /history   GET /history/{incident_id}   (Ida 2021 reference, see history.py)
     GET /chain/{correlation_id}  GET /graph            GET /health
 Unknown paths and ids answer 404 with a JSON body.
 """
@@ -49,6 +50,10 @@ def route(service: GraphService, parts: list[str], query: dict[str, list[str]]):
         return service.chain(parts[1])
     if parts == ["actuators"]:
         return service.actuators((query.get("zone_id") or [None])[0])
+    if parts == ["history"]:
+        return service.history_view()
+    if len(parts) == 2 and parts[0] == "history":
+        return service.history_view(parts[1])
     if parts == ["graph"]:
         return service.view()
     if parts == ["health"]:

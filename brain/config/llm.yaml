@@ -29,6 +29,8 @@ context:
   max_calls: 3
   call_text_max_chars: 200
   neighbour_actuators: false    # offer only actuators that act on the incident's zone (units: all free ones)
+  use_history: false            # true: add the graph's Ida 2021 reference hint to the prompt (graph.yaml history).
+                                # Off until the prompt is re-benchmarked with it (python -m src.llm.bench).
 
 validation:
   max_actions: 3
