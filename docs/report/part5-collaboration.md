@@ -8,11 +8,21 @@ frozen early (`docs/team-plan/00`, section 3) and turned into code contracts: py
 a test fails if a schema is out of date. Every module follows the same pattern (a pure service tested
 without a broker, a thin MQTT entry point, settings in `config/`), so modules built in parallel could
 be merged without integration surprises. One branch per task, merged through pull requests
-(#1 input, #2 mock Twin, #3 math library, #11 LLM, #12 documentation, #13 test fix); problems found in review
+(#1 input, #2 mock Twin, #3 math library, #11 LLM, #12 documentation, #13 test fix, #14 complete City Brain, #15 dataset studies, #16 case memory); problems found in review
 were filed as issues with evidence and a proposed fix (#4–#10).
 
-*[To complete by the team: meeting rhythm, communication channels, and coordination with the Twin and
-Guardian teams.]*
+**Meetings and coordination.** The triplet met online on Google Meet every two weeks. The first
+meetings set the ground rules shared by the three layers:
+
+- what each layer is responsible for (Twin: *what is happening?*, Guardian: *is it true?*, City Brain:
+  *what should we do?*);
+- how the layers talk to each other (MQTT topics, message envelope, signatures, status and Last Will);
+- which tools fit each layer best.
+
+After that, every meeting followed a short Scrum-style check-up. Each layer said what it had finished
+since the last meeting, what it would do next, and what was blocking it. Interface questions raised
+there were settled in the meeting and then written into the repository (`INTEGRATION.md`,
+`brain/INTERFACE.md`), so the code, not memory, held the agreement.
 
 **How a partner failure or change was handled.**
 
