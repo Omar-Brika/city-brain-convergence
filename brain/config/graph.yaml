@@ -34,6 +34,23 @@ context:
   max_units: 6
   summary_chars: 60
 
+# Incident history (src/graph/history.py): a real storm as a reference for live incidents.
+# Built offline from the NYC 311 calls of Hurricane Ida 2021 by tools/build_history.py (port of
+# brain/notebooks/nyc311_ida_*.ipynb). /context gets a short `history` hint (dropped first if the
+# context is too long); /history serves the library. No network, no vector DB at run time.
+history:
+  enabled: true
+  file: data/history/nyc311-ida.json
+  types:                      # Brain incident type -> incident type in the library (others: no history)
+    flood: flood
+  severity_level:             # incident severity -> surge level of the library
+    low: small cluster
+    medium: busy period
+    high: heavy surge
+    critical: extreme surge
+  wave_share_min: 0.5         # mention the waves only when most past calls at that level were inside one
+  hint_chars: 260
+
 graph_view:
   max_incidents: 20           # GET /graph: the city + the most recent incidents and what is linked to them
 
